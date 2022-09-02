@@ -28,5 +28,14 @@ function safeMint() external onlyOwner {
 
 }
 
+/// @notice Used to update the base URI for metadata stored on IPFS 
+/// @dev URL must be in the format "ipfs://<hash>/“ and the proper extension is used ".json"
+/// @param   _baseURI    The IPFS URI pointing to stored metadata
+function setBaseURI(string memory _baseURI) public {}
+
+
+/// @notice Returns unique metadata identifier for each token
+/// @param   tokenId    The ID of the token being queried
+function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {}
 
 }
