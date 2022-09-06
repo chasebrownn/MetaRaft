@@ -72,7 +72,7 @@ contract NFT is ERC721, Ownable {
     /// @param _amount The amount of NFTs we are minting.
     /// @dev Minters can mint up to only 20 NFTs at a time, and may not mint if minted supply >= 10,000.
     function mintDapp(uint256 _amount) public payable {
-        require(publicSaleActive, "");
+        require(publicSaleActive, "NFT.sol::mintDapp() Public sale is not active.");
         require(currentTokenId + _amount <= totalSupply, "");
         require(balanceOf(msg.sender) + _amount <= maxRaftPurchase, "");
         require(raftPrice * _amount <= msg.value, "");
