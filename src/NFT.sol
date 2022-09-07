@@ -26,7 +26,7 @@ contract NFT is ERC721, Ownable {
     mapping(address => bool) whitelistMinted;       /// @notice Used to keep track of who is whitelsited for minting.
 
     bytes32 private merkleRoot;                     /// @notice Merkle root for verifying whitelisted addresses.
-    address public rewards;                         /// @notice Stores the contract address of Rewards.sol.
+    address public rewardsContract;                 /// @notice Stores the contract address of Rewards.sol.
     bool public publicSaleActive;                   /// @notice 
     bool public whitelistSaleActive;                /// @notice 
 
@@ -36,6 +36,8 @@ contract NFT is ERC721, Ownable {
 
     /// @notice Initializes MetaRaft.sol.
     constructor(string memory _name, string memory _symbol) ERC721(_name, _symbol) {
+
+
     }
 
     // ---------
@@ -43,7 +45,7 @@ contract NFT is ERC721, Ownable {
     // ---------
 
     modifier isRewards(address sender) {
-        require(rewards == sender,
+        require(rewardsContract == sender,
         "NFT.sol::isRewards() msg.sender is not Rewards.sol");
         _;
     }
@@ -72,7 +74,7 @@ contract NFT is ERC721, Ownable {
     /// @param _amount The amount of NFTs we are minting.
     /// @dev Minters can mint up to only 20 NFTs at a time, and may not mint if minted supply >= 10,000.
     function mintDapp(uint256 _amount) public payable {
-        require(publicSaleActive, "NFT.sol::mintDapp() Public sale is not active.");
+        require(publicSaleActive, "NFT.sol::mintDapp() Public sale is not active");
         require(currentTokenId + _amount <= totalSupply, "");
         require(balanceOf(msg.sender) + _amount <= maxRaftPurchase, "");
         require(raftPrice * _amount <= msg.value, "");
@@ -158,6 +160,16 @@ contract NFT is ERC721, Ownable {
 
     function modifyWhitelistRoot(bytes32 _merkleRoot) public onlyOwner {
 
+    }
+
+    /// @notice This function is used to add wallets to the whitelist mapping.
+    /// @param  _rewardsContract is the wallet address that will have their whitelist status modified.
+    function setRewardsAddress(address _rewardsContract) external onlyOwner {
+        require(_rewardsContract != address(0), "NFT.sol::setRewardsAddress() Reward.sol address cannot be address(0)");
+        require(_rewardsContract != address(this), "NFT.sol::setRewardsAddress() Reward.sol cannot be the NFT address");
+        require(_rewardsContract != rewardsContract, "NFT.sol::setRewardsAddress() Reward.sol address cannot be the same as before");
+        
+        rewardsContract = _rewardsContract;
     }
 
 }
