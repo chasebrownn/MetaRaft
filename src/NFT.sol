@@ -168,8 +168,14 @@ contract NFT is ERC721, Ownable {
         require(_rewardsContract != address(0), "NFT.sol::setRewardsAddress() Reward.sol address cannot be address(0)");
         require(_rewardsContract != address(this), "NFT.sol::setRewardsAddress() Reward.sol cannot be the NFT address");
         require(_rewardsContract != rewardsContract, "NFT.sol::setRewardsAddress() Reward.sol address cannot be the same as before");
-        
+
         rewardsContract = _rewardsContract;
+    }
+
+    /// @notice This function is used to convert all funds collected after mint to USDC and withdraws it to Rewards.sol.
+    function swapToUSDCandWithdraw() external onlyOwner {
+
+
     }
 
 }

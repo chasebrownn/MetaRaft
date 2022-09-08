@@ -11,7 +11,10 @@ contract Rewards is Ownable {
 
     address public stableCurrency;           /// @notice Used to store address of coin used to deposit/payout from Rewards.sol.
     address public nftContract;              /// @notice Used to store the address of the NFT contract.
-   
+    enum rewardTiers {                       
+        TIER_ONE, TIER_TWO, TIER_THREE, TIER_FOUR, TIER_FIVE, TIER_SIX
+    }                                        /// @notice Used to store the rewards tier in an easier to read format.
+
 
 
     // -----------
@@ -31,6 +34,11 @@ contract Rewards is Ownable {
         transferOwnership(msg.sender);
     }
 
+    /// @notice Deposits the amount of rewards in USDC to distribute.
+    /// @param  _amntToDistribute Stores the amount of rewards in USDC to distribute.
+    function depositUSDC(uint _amntToDistribute) public onlyOwner() {
+        // TODO: figure out method of dividend payouts.
+    }
 
 
 
