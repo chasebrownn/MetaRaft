@@ -1,38 +1,26 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "./openzeppelin-contracts-master/contracts/access/Ownable.sol";
+import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 
 contract Rewards is Ownable {
-    
     // ---------------
     // State Variables
     // ---------------
 
-    address public stableCurrency;           /// @notice Used to store address of coin used to deposit/payout from Rewards.sol.
-    address public nftContract;              /// @notice Used to store the address of the NFT contract.
-   
-
+    address public stableCurrency; /// @notice Used to store address of coin used to deposit/payout from Rewards.sol.
+    address public nftContract; /// @notice Used to store the address of the NFT contract.
 
     // -----------
     // Constructor
     // -----------
 
-    /// @notice Initializes Rewards.sol 
+    /// @notice Initializes Rewards.sol
     /// @param _stableCurrency Used to store address of stablecoin used in contract (default is USDC).
     /// @param _nftContract Used to store the address of the NFT contract ($META).
-    constructor (
-        address _stableCurrency,
-        address _nftContract
-
-    ) {
+    constructor(address _stableCurrency, address _nftContract) {
         stableCurrency = _stableCurrency;
         nftContract = _nftContract;
         transferOwnership(msg.sender);
     }
-
-
-
-
-
 }

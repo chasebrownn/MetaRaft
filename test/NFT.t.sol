@@ -3,11 +3,22 @@ pragma solidity ^0.8.13;
 
 import "../lib/forge-std/src/Test.sol";
 import "./Utility.sol";
+import "../src/NFT.sol";
+import "../src/Rewards.sol";
 
 contract NFTTest is Test, Utility {
-    function setUp() public {}
+    // State variable for contract.
+    NFT raftToken;
+    Rewards reward;
 
-    function testExample() public {
-        assertTrue(true);
+    function setUp() public {
+        createActors();
+        // nft constructor
+        raftToken = new NFT(
+            "RaftToken", // Name of collection
+            "RT" // Symbol of collection
+        );
+
+        //TODO: Initialize Rewards contract
     }
 }

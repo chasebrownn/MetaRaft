@@ -2,10 +2,9 @@
 pragma solidity ^0.8.6;
 pragma experimental ABIEncoderV2;
 
-import { IERC20 } from "../interfaces/InterfacesAggregated.sol";
+import {IERC20} from "../interfaces/InterfacesAggregated.sol";
 
 contract Actor {
-
     /************************/
     /*** DIRECT FUNCTIONS ***/
     /************************/
@@ -22,5 +21,11 @@ contract Actor {
     //      string memory sig = "updateTreasury(address)";
     //      (ok,) = address(stake).call(abi.encodeWithSignature(sig, _newTreasury));
     // }
-
+    function try_mintDapp(address token, uint256 _amount)
+        external
+        returns (bool ok)
+    {
+        string memory sig = "mintDapp(uint256)";
+        (ok, ) = address(token).call(abi.encodeWithSignature(sig, _amount));
+    }
 }

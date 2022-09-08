@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "./openzeppelin-contracts-master/contracts/access/Ownable.sol";
-import "./openzeppelin-contracts-master/contracts/utils/Strings.sol";
+import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+import "../lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 import "./libraries/ERC721.sol";
 
 contract NFT is ERC721, Ownable {
