@@ -108,13 +108,16 @@ contract NFT is ERC721, Ownable {
         return (whitelistMinted[_address]);
     }
 
+    /// @notice handles minting for public sale
     function mintPublic(address _address, uint256 _amount) internal {
         for (uint256 i = 0; i < _amount; i++) {
             _mint(_address, currentTokenId);
+            emit Transfer(address(0), msg.sender, currentTokenId);
             currentTokenId++;
         }
     }
 
+    /// @notice handles minting for whitelist sale
     function mintWhitelist(address _address, uint256 _amount) internal {
         // verify merkle proof and address beforehand
         require(
@@ -123,6 +126,7 @@ contract NFT is ERC721, Ownable {
         );
         for (uint256 i = 0; i < _amount; i++) {
             _mint(_address, currentTokenId);
+            emit Transfer(address(0), msg.sender, currentTokenId);
             currentTokenId++;
         }
     }
@@ -136,6 +140,10 @@ contract NFT is ERC721, Ownable {
     function mintLeftovers() external onlyOwner {
         //currentTokenId == totalSupply
         // burn all tokenIds from currentTokenId up to totalSupply
+    }
+
+    function setPublicSaleState(bool _state) public onlyOwner {
+        publicSaleActive = _state;
     }
 
     /// @notice Used to update the base URI for metadata stored on IPFS.

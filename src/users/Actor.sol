@@ -21,11 +21,14 @@ contract Actor {
     //      string memory sig = "updateTreasury(address)";
     //      (ok,) = address(stake).call(abi.encodeWithSignature(sig, _newTreasury));
     // }
-    function try_mintDapp(address token, uint256 _amount)
-        external
-        returns (bool ok)
-    {
+    function try_mintDapp(
+        address token,
+        uint256 _amount,
+        uint256 _value
+    ) external payable returns (bool ok) {
         string memory sig = "mintDapp(uint256)";
-        (ok, ) = address(token).call(abi.encodeWithSignature(sig, _amount));
+        (ok, ) = address(token).call{value: _value}(
+            abi.encodeWithSignature(sig, _amount)
+        );
     }
 }
