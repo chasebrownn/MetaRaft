@@ -10,6 +10,10 @@ contract Rewards is Ownable {
 
     address public stableCurrency; /// @notice Used to store address of coin used to deposit/payout from Rewards.sol.
     address public nftContract; /// @notice Used to store the address of the NFT contract.
+    enum rewardTiers {                       
+        TIER_ONE, TIER_TWO, TIER_THREE, TIER_FOUR, TIER_FIVE, TIER_SIX
+    }                                        /// @notice Used to store the rewards tier in an easier to read format.
+
 
     // -----------
     // Constructor
@@ -23,4 +27,5 @@ contract Rewards is Ownable {
         nftContract = _nftContract;
         transferOwnership(msg.sender);
     }
+
 }
