@@ -75,11 +75,7 @@ contract Utility is Test {
     }
 
     // Manipulate mainnet ERC20 balance.
-    function mint(
-        bytes32 symbol,
-        address account,
-        uint256 amt
-    ) public {
+    function mint(bytes32 symbol, address account, uint256 amt) public {
         address addr = tokens[symbol].addr;
         uint256 slot = tokens[symbol].slot;
         uint256 bal = IERC20(addr).balanceOf(account);
@@ -99,11 +95,7 @@ contract Utility is Test {
     // }
 
     // Verify equality within accuracy decimals
-    function withinPrecision(
-        uint256 val0,
-        uint256 val1,
-        uint256 accuracy
-    ) public {
+    function withinPrecision(uint256 val0, uint256 val1, uint256 accuracy) public {
         uint256 diff = val0 > val1 ? val0 - val1 : val1 - val0;
         if (diff == 0) return;
 
@@ -122,39 +114,23 @@ contract Utility is Test {
     }
 
     // Verify equality within difference
-    function withinDiff(
-        uint256 val0,
-        uint256 val1,
-        uint256 expectedDiff
-    ) public {
+    function withinDiff(uint256 val0, uint256 val1, uint256 expectedDiff) public {
         uint256 actualDiff = val0 > val1 ? val0 - val1 : val1 - val0;
         bool check = actualDiff <= expectedDiff;
 
         if (!check) {
             // use Foundry's logging events to log string, uint pairs.
-            emit log_named_uint(
-                "Error: approx a == b not satisfied, accuracy difference ",
-                expectedDiff
-            );
+            emit log_named_uint("Error: approx a == b not satisfied, accuracy difference ", expectedDiff);
             emit log_named_uint("  Expected", val0);
             emit log_named_uint("  Actual", val1);
         }
     }
 
-    function constrictToRange(
-        uint256 val,
-        uint256 min,
-        uint256 max
-    ) public pure returns (uint256) {
+    function constrictToRange(uint256 val, uint256 min, uint256 max) public pure returns (uint256) {
         return constrictToRange(val, min, max, false);
     }
 
-    function constrictToRange(
-        uint256 val,
-        uint256 min,
-        uint256 max,
-        bool nonZero
-    ) public pure returns (uint256) {
+    function constrictToRange(uint256 val, uint256 min, uint256 max, bool nonZero) public pure returns (uint256) {
         if (val == 0 && !nonZero) return 0;
         else if (max == min) return max;
         else return (val % (max - min)) + min;
