@@ -24,10 +24,10 @@ contract NFT is ERC721, Ownable {
     // Extras
     mapping(address => bool) whitelistMinted; /// @notice Used to keep track of who is whitelsited for minting.
 
-    bytes32 private merkleRoot; /// @notice Merkle root for verifying whitelisted addresses.
-    address public rewardsContract; /// @notice Stores the contract address of Rewards.sol.
-    bool public publicSaleActive; /// @notice
-    bool public whitelistSaleActive; /// @notice
+    bytes32 private merkleRoot;         /// @notice Root hash used for verifying whitelisted addresses.
+    address public rewardsContract;     /// @notice Stores the contract address of Rewards.sol.
+    bool public publicSaleActive;       /// @notice Controls the access for public mint
+    bool public whitelistSaleActive;    /// @notice Controls the access for whitelist mint
 
     // -----------
     // Constructor
@@ -43,10 +43,7 @@ contract NFT is ERC721, Ownable {
     // ---------
 
     modifier isRewards(address sender) {
-        require(
-            rewardsContract == sender,
-            "NFT.sol::isRewards() msg.sender is not Rewards.sol"
-        );
+        require(rewardsContract == sender, "NFT.sol::isRewards() msg.sender is not Rewards.sol");
         _;
     }
 
@@ -76,22 +73,10 @@ contract NFT is ERC721, Ownable {
     /// @param _amount The amount of NFTs we are minting.
     /// @dev Minters can mint up to only 20 NFTs at a time, and may not mint if minted supply >= 10,000.
     function mintDapp(uint256 _amount) public payable {
-        require(
-            currentTokenId + _amount <= totalSupply,
-            "NFT.sol::mintDapp() Transaction exceeds total supply"
-        );
-        require(
-            balanceOf(msg.sender) + _amount <= maxRaftPurchase,
-            "NFT.sol::mintDapp() Transaction exceeds maximum purchase restriction (20)"
-        );
-        require(
-            raftPrice * _amount <= msg.value,
-            "NFT.sol::mintDapp() Message value must be greater than price of NFTs"
-        );
-        require(
-            whitelistSaleActive || publicSaleActive,
-            "NFT.sol::mintDapp() No sale is currently active"
-        );
+        require(currentTokenId + _amount <= totalSupply, "NFT.sol::mintDapp() Transaction exceeds total supply");
+        require(balanceOf(msg.sender) + _amount <= maxRaftPurchase, "NFT.sol::mintDapp() Transaction exceeds maximum purchase restriction (20)");
+        require(raftPrice * _amount <= msg.value, "NFT.sol::mintDapp() Message value must be greater than price of NFTs");
+        require(whitelistSaleActive || publicSaleActive, "NFT.sol::mintDapp() No sale is currently active");
         if (whitelistSaleActive) {
             mintWhitelist(msg.sender, _amount);
         } else if (publicSaleActive) {
@@ -120,16 +105,15 @@ contract NFT is ERC721, Ownable {
     /// @notice handles minting for whitelist sale
     function mintWhitelist(address _address, uint256 _amount) internal {
         // verify merkle proof and address beforehand
-        require(
-            merkleCheck(msg.sender),
-            "NFT.sol::mintWhitelist() Wallet is not whitelisted"
-        );
+        require(merkleCheck(msg.sender), "NFT.sol::mintWhitelist() Wallet is not whitelisted");
         for (uint256 i = 0; i < _amount; i++) {
             _mint(_address, currentTokenId);
             emit Transfer(address(0), msg.sender, currentTokenId);
             currentTokenId++;
         }
     }
+
+
 
     // ---------------
     // Owner Functions
@@ -210,19 +194,9 @@ contract NFT is ERC721, Ownable {
     /// @notice This function is used to add wallets to the whitelist mapping.
     /// @param  _rewardsContract is the wallet address that will have their whitelist status modified.
     function setRewardsAddress(address _rewardsContract) external onlyOwner {
-        require(
-            _rewardsContract != address(0),
-            "NFT.sol::setRewardsAddress() Reward.sol address cannot be address(0)"
-        );
-        require(
-            _rewardsContract != address(this),
-            "NFT.sol::setRewardsAddress() Reward.sol cannot be the NFT address"
-        );
-        require(
-            _rewardsContract != rewardsContract,
-            "NFT.sol::setRewardsAddress() Reward.sol address cannot be the same as before"
-        );
-
+        require(_rewardsContract != address(0), "NFT.sol::setRewardsAddress() Reward.sol address cannot be address(0)");
+        require(_rewardsContract != address(this), "NFT.sol::setRewardsAddress() Reward.sol cannot be the NFT address");
+        require(_rewardsContract != rewardsContract, "NFT.sol::setRewardsAddress() Reward.sol address cannot be the same as before");
         rewardsContract = _rewardsContract;
     }
 }

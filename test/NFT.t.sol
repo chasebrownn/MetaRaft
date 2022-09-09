@@ -25,11 +25,18 @@ contract NFTTest is Test, Utility {
         //TODO: Initialize Rewards contract
     }
 
+
+    /// @notice tests intial values set in the constructor
+    function test_init_state() public {
+        assertEq(raftToken.symbol(), "RT");
+        assertEq(raftToken.name(), "RaftToken");
+    }
+
     /// @notice tests that minting mints the proper quantity and ID of token
     /// @dev when using try_mintDapp pass message value with the function call and as a parameter
     function test_mintDapp_public_simple() public {
         raftToken.setPublicSaleState(true);
-        joe.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether);
+        assert(joe.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
         assertEq(raftToken.ownerOf(1), address(joe));
         assertEq(raftToken.balanceOf(address(joe)), 1);
     }
