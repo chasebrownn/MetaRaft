@@ -40,4 +40,74 @@ contract NFTTest is Test, Utility {
         assertEq(raftToken.ownerOf(1), address(joe));
         assertEq(raftToken.balanceOf(address(joe)), 1);
     }
+
+    function test_mintDapp_SaleActive() public{
+        // Whitelsit Art
+        raftToken.modifyWhitelist(address(art), true);
+        // No sales are active
+        assert(!raftToken.publicSaleActive());
+        assert(!raftToken.whitelistSaleActive());
+
+        // Minting With no active sales
+        assert(!joe.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
+        assert(!art.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
+
+        // Minting during whitelist
+        raftToken.setWhitelistSaleState(true);
+        assert(!joe.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
+        assert(art.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
+
+        // Only whitelist account receives NFT
+        assertEq(raftToken.balanceOf(address(joe)), 0);
+        assertEq(raftToken.balanceOf(address(art)), 1);
+
+        raftToken.setWhitelistSaleState(false);
+        //Minting during public
+        raftToken.setPublicSaleState(true);
+        assert(joe.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
+        assert(art.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
+        //Public sale both receive NFT
+        assertEq(raftToken.balanceOf(address(joe)), 1);
+        assertEq(raftToken.balanceOf(address(art)), 2);
+    }
+
+    function test_mintDapp_totalSupply() public {
+        raftToken.setPublicSaleState(true);
+
+        // Mint 10_000 NFTs (max supply)
+        for(uint usr = 0; usr < 500 ; usr++ ){
+            Actor user = new Actor();
+            assert(user.try_mintDapp{value: 20 ether}(address(raftToken), 20, 20 ether));
+        }
+        //Current token Id is really next token ID, (minted tokens + 1)
+        assertEq(raftToken.currentTokenId(), 10_001);
+
+        // Mint over maximum supply
+        assert(!joe.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
+        assertEq(raftToken.currentTokenId(), 10_001);
+
+    }
+
+    function test_mintDapp_maxRaftPurchase() public {
+        raftToken.setPublicSaleState(true);
+        // Mint more than max 
+        assert(!joe.try_mintDapp{value: 21 ether}(address(raftToken), 21, 21 ether));
+        //Mint max wallet size
+        assert(joe.try_mintDapp{value: 20 ether}(address(raftToken), 20, 20 ether));
+        //Increment 1 
+        assert(!joe.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
+    }
+
+    function test_mintDapp_salePrice() public {
+        raftToken.setPublicSaleState(true);
+        assert(!joe.try_mintDapp{value: .9 ether}(address(raftToken), 1, .9 ether));
+        assert(!joe.try_mintDapp{value: 1 ether}(address(raftToken), 2, 1 ether));
+    }
+
+    function testFail_StateConflict() public{
+        raftToken.setWhitelistSaleState(true);  
+        raftToken.setPublicSaleState(true);
+    }
+
+
 }

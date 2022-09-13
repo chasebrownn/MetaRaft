@@ -51,13 +51,7 @@ contract NFT is ERC721, Ownable {
     // Functions
     // ---------
 
-    function tokenURI(uint256 _tokenId)
-        public
-        view
-        virtual
-        override
-        returns (string memory)
-    {
+    function tokenURI(uint256 _tokenId) public view virtual override returns (string memory){
         if (ownerOf(_tokenId) == address(0)) {
             //revert NonExistentTokenURI();
         }
@@ -73,7 +67,7 @@ contract NFT is ERC721, Ownable {
     /// @param _amount The amount of NFTs we are minting.
     /// @dev Minters can mint up to only 20 NFTs at a time, and may not mint if minted supply >= 10,000.
     function mintDapp(uint256 _amount) public payable {
-        require(currentTokenId + _amount <= totalSupply, "NFT.sol::mintDapp() Transaction exceeds total supply");
+        require(currentTokenId + _amount <= totalSupply + 1, "NFT.sol::mintDapp() Transaction exceeds total supply");
         require(balanceOf(msg.sender) + _amount <= maxRaftPurchase, "NFT.sol::mintDapp() Transaction exceeds maximum purchase restriction (20)");
         require(raftPrice * _amount <= msg.value, "NFT.sol::mintDapp() Message value must be greater than price of NFTs");
         require(whitelistSaleActive || publicSaleActive, "NFT.sol::mintDapp() No sale is currently active");
@@ -126,8 +120,24 @@ contract NFT is ERC721, Ownable {
         // burn all tokenIds from currentTokenId up to totalSupply
     }
 
+    /// @notice This function toggles public sale
+    /// @param _state true if public sale is active
     function setPublicSaleState(bool _state) public onlyOwner {
+        require(!whitelistSaleActive, "NFT.sol::setPublicSaleState() Whitelist sale currently active");
         publicSaleActive = _state;
+    }
+    /// @notice This function toggles whitelist sale
+    /// @param _state true if whitelist sale is active
+    function setWhitelistSaleState(bool _state) public onlyOwner {
+        require(!publicSaleActive, "NFT.sol::setWhitelistSaleState() Public sale currently active");
+        whitelistSaleActive = _state;
+    }
+
+    /// @notice This function is used to add wallets to the whitelist mapping.
+    /// @param  _address is the wallet address that will have their whitelist status modified.
+    /// @param  _state use True to whitelist a wallet, otherwise use False to remove wallet from whitelist.
+    function modifyWhitelist(address _address, bool _state) public onlyOwner {
+        whitelistMinted[_address] = _state;
     }
 
     /// @notice Used to update the base URI for metadata stored on IPFS.
@@ -179,15 +189,7 @@ contract NFT is ERC721, Ownable {
         */
     }
 
-    /// @notice This function is used to add wallets to the whitelist mapping.
-    /// @param  _wallet is the wallet address that will have their whitelist status modified.
-    /// @param  _whitelist use True to whitelist a wallet, otherwise use False to remove wallet from whitelist.
-    function modifyWhitelist(address _wallet, bool _whitelist)
-        public
-        onlyOwner
-    {
-        //whitelist[_wallet] = _whitelist;
-    }
+
 
     function modifyWhitelistRoot(bytes32 _merkleRoot) public onlyOwner {}
 

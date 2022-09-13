@@ -104,10 +104,7 @@ contract Utility is Test {
 
         if (!check) {
             // use Foundry's logging events to log string, uint pairs.
-            emit log_named_uint(
-                "Error: approx a == b not satisfied, accuracy digits ",
-                accuracy
-            );
+            emit log_named_uint( "Error: approx a == b not satisfied, accuracy digits ", accuracy);
             emit log_named_uint("  Expected", val0);
             emit log_named_uint("  Actual", val1);
         }
