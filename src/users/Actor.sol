@@ -25,4 +25,36 @@ contract Actor {
         string memory sig = "mintDapp(uint256)";
         (ok, ) = address(token).call{value: _value}(abi.encodeWithSignature(sig, _amount));
     }
+
+
+    function try_tokenURI(address token, uint256 _id) external returns (bool ok) {
+         string memory sig = "tokenURI(uint256)";
+         (ok,) = address(token).call(abi.encodeWithSignature(sig, _id));
+    }
+
+    function try_setBaseURI(address token, string memory _baseURI) external returns (bool ok) {
+         string memory sig = "setBaseURI(string)";
+         (ok,) = address(token).call(abi.encodeWithSignature(sig, _baseURI));
+    }
+    
+    function try_modifyWhitelistRoot(address token, bytes32 _modifyWhitelistRoot) external returns (bool ok) {
+         string memory sig = "modifyWhitelistRoot(bytes32)";
+         (ok,) = address(token).call(abi.encodeWithSignature(sig, _modifyWhitelistRoot));
+    }
+    
+    function try_setRewardsAddress(address token, address _rewardsContract) external returns (bool ok) {
+         string memory sig = "setRewardsAddress(address)";
+         (ok,) = address(token).call(abi.encodeWithSignature(sig, _rewardsContract));
+    }
+
+    function try_setPublicSaleState(address token, bool _state) external returns (bool ok) {
+         string memory sig = "setPublicSaleState(bool)";
+         (ok,) = address(token).call(abi.encodeWithSignature(sig, _state));
+    }
+
+    function try_setWhitelistSaleState(address token, bool _state) external returns (bool ok) {
+         string memory sig = "setWhitelistSaleState(bool)";
+         (ok,) = address(token).call(abi.encodeWithSignature(sig, _state));
+    }    
+
 }
