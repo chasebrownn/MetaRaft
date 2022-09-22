@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+import "src/libraries/Ownable.sol";
 
 contract Rewards is Ownable {
     // ---------------
