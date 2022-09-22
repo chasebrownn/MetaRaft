@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "./openzeppelin-contracts-master/contracts/access/Ownable.sol";
-import "./openzeppelin-contracts-master/contracts/utils/Strings.sol";
+import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+import "../lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 import "./libraries/ERC721.sol";
 
 contract NFT is ERC721, Ownable {
- 
     using Strings for uint256;
 
     // ---------------
@@ -23,30 +22,28 @@ contract NFT is ERC721, Ownable {
     string public baseURI;
 
     // Extras
-    mapping(address => bool) whitelistMinted;       /// @notice Used to keep track of who is whitelsited for minting.
+    mapping(address => bool) whitelistMinted; /// @notice Used to keep track of who is whitelsited for minting.
 
-    bytes32 private merkleRoot;                     /// @notice Merkle root for verifying whitelisted addresses.
-    address public rewardsContract;                 /// @notice Stores the contract address of Rewards.sol.
-    bool public publicSaleActive;                   /// @notice 
-    bool public whitelistSaleActive;                /// @notice 
+    bytes32 private merkleRoot;         /// @notice Root hash used for verifying whitelisted addresses.
+    address public rewardsContract;     /// @notice Stores the contract address of Rewards.sol.
+    bool public publicSaleActive;       /// @notice Controls the access for public mint
+    bool public whitelistSaleActive;    /// @notice Controls the access for whitelist mint
 
     // -----------
     // Constructor
     // -----------
 
     /// @notice Initializes MetaRaft.sol.
-    constructor(string memory _name, string memory _symbol) ERC721(_name, _symbol) {
-
-
-    }
+    constructor(string memory _name, string memory _symbol)
+        ERC721(_name, _symbol)
+    {}
 
     // ---------
     // Modifiers
     // ---------
 
     modifier isRewards(address sender) {
-        require(rewardsContract == sender,
-        "NFT.sol::isRewards() msg.sender is not Rewards.sol");
+        require(rewardsContract == sender, "NFT.sol::isRewards() msg.sender is not Rewards.sol");
         _;
     }
 
@@ -54,19 +51,12 @@ contract NFT is ERC721, Ownable {
     // Functions
     // ---------
 
-    function tokenURI(uint256 _tokenId)
-        public
-        view
-        virtual
-        override
-        returns (string memory)
-    {
-        if (ownerOf(_tokenId) == address(0)) {
-            //revert NonExistentTokenURI();
-        }
+    function tokenURI(uint256 _tokenId) public view virtual override returns (string memory){
         return
             bytes(baseURI).length > 0
-                ? string(abi.encodePacked(baseURI, _tokenId.toString(), ".json"))
+                ? string(
+                    abi.encodePacked(baseURI, _tokenId.toString(), ".json")
+                )
                 : "";
     }
 
@@ -74,20 +64,37 @@ contract NFT is ERC721, Ownable {
     /// @param _amount The amount of NFTs we are minting.
     /// @dev Minters can mint up to only 20 NFTs at a time, and may not mint if minted supply >= 10,000.
     function mintDapp(uint256 _amount) public payable {
-        require(publicSaleActive, "NFT.sol::mintDapp() Public sale is not active");
-        require(currentTokenId + _amount <= totalSupply, "");
-        require(balanceOf(msg.sender) + _amount <= maxRaftPurchase, "");
-        require(raftPrice * _amount <= msg.value, "");
-        
-
+        require(currentTokenId + _amount <= totalSupply + 1, "NFT.sol::mintDapp() Transaction exceeds total supply");
+        require(balanceOf(msg.sender) + _amount <= maxRaftPurchase, "NFT.sol::mintDapp() Transaction exceeds maximum purchase restriction (20)");
+        require(raftPrice * _amount <= msg.value, "NFT.sol::mintDapp() Message value must be greater than price of NFTs");
+        require(whitelistSaleActive || publicSaleActive, "NFT.sol::mintDapp() No sale is currently active");
+        if (publicSaleActive) {
+            mint(msg.sender, _amount);
+        } else if (whitelistSaleActive) {
+            require(merkleCheck(msg.sender), "NFT.sol::mintWhitelist() Wallet is not whitelisted");
+            mint(msg.sender, _amount);
+        }
     }
 
-    function mintWhitelist(uint256 _amount) public payable {
-        // verify merkle proof and address beforehand
-        require(whitelistSaleActive, "");
-        require(currentTokenId + _amount <= totalSupply, "");
-        require(balanceOf(msg.sender) + _amount <= maxRaftPurchase, "");
+    /// @notice This function will verify whitelist status using a merkle proof received from the front-end
+    /// @dev this function will check whitelist against a mapping until front-end implementation
+    /// TODO: create a low level dapp to test merkle tree
+    function merkleCheck(address _address) internal view returns (bool) {
+        return (whitelistMinted[_address]);
     }
+
+    /// @notice handles minting for public sale
+    function mint(address _address, uint256 _amount) internal {
+        for (uint256 i = 0; i < _amount; i++) {
+            _mint(_address, currentTokenId);
+            emit Transfer(address(0), msg.sender, currentTokenId);
+            currentTokenId++;
+        }
+    }
+
+
+
+
 
     // ---------------
     // Owner Functions
@@ -100,10 +107,39 @@ contract NFT is ERC721, Ownable {
         // burn all tokenIds from currentTokenId up to totalSupply
     }
 
+    /// @notice This function toggles public sale
+    /// @param _state true if public sale is active
+    function setPublicSaleState(bool _state) public onlyOwner {
+        require(publicSaleActive != _state, "NFT.sol::setPubliclistSaleState() _state cannot be same as before ");
+        publicSaleActive = _state;
+    }
+
+    /// @notice This function toggles whitelist sale
+    /// @param _state true if whitelist sale is active
+    function setWhitelistSaleState(bool _state) public onlyOwner {
+        require(whitelistSaleActive != _state, "NFT.sol::setWhitelistSaleState() _state cannot be same as before ");
+        whitelistSaleActive = _state;
+    }
+
+    /// @notice This function is used to add wallets to the whitelist mapping.
+    /// @param  _address is the wallet address that will have their whitelist status modified.
+    /// @param  _state use True to whitelist a wallet, otherwise use False to remove wallet from whitelist.
+    /// @dev temporary for 
+    function modifyWhitelist(address _address, bool _state) public onlyOwner {
+        whitelistMinted[_address] = _state;
+    }
+
     /// @notice Used to update the base URI for metadata stored on IPFS.
     /// @dev URL must be in the format "ipfs://<hash>/“ and the proper extension is used ".json".
     /// @param   _baseURI    The IPFS URI pointing to stored metadata.
     function setBaseURI(string memory _baseURI) public onlyOwner {
+        require(keccak256(abi.encodePacked(_baseURI)) != keccak256(abi.encodePacked("")), "NFT.sol::setBaseURI() baseURI cannot be empty");
+        require(keccak256(abi.encodePacked(_baseURI)) != keccak256(abi.encodePacked(baseURI)), "NFT.sol::setBaseURI() baseURI address cannot be the same as before");
+
+        baseURI = _baseURI;
+    }
+
+
         // figure out how to only set this value once or twice
         // 1) Default images with blank metadata (while minting)
         /*
@@ -126,7 +162,6 @@ contract NFT is ERC721, Ownable {
             ]
         }
         */
-
         // 2) Revealed images with metadata (after drawing)
         /*
         NFT Metadata (After drawing):
@@ -148,21 +183,18 @@ contract NFT is ERC721, Ownable {
             ]
         }
         */
+    
 
-    }
 
-    /// @notice This function is used to add wallets to the whitelist mapping.
-    /// @param  _wallet is the wallet address that will have their whitelist status modified.
-    /// @param  _whitelist use True to whitelist a wallet, otherwise use False to remove wallet from whitelist.
-    function modifyWhitelist(address _wallet, bool _whitelist) public onlyOwner {
-        //whitelist[_wallet] = _whitelist;
-    }
-
+    /// @notice This function is used to update the merkleRoot
+    /// @param _merkleRoot is the root of the whitelist merkle tree
     function modifyWhitelistRoot(bytes32 _merkleRoot) public onlyOwner {
+        require(_merkleRoot != bytes32(""), "NFT.sol::modifyWhitelistRoot Merkle root cannot be empty");
+        require(_merkleRoot != merkleRoot, "NFT.sol::modifyWhitelistRoot Merkle root cannot be the same as before");
 
+        merkleRoot = _merkleRoot;
     }
 
-    /// @notice This function is used to add wallets to the whitelist mapping.
     /// @param  _rewardsContract is the wallet address that will have their whitelist status modified.
     function setRewardsAddress(address _rewardsContract) external onlyOwner {
         require(_rewardsContract != address(0), "NFT.sol::setRewardsAddress() Reward.sol address cannot be address(0)");
@@ -174,7 +206,6 @@ contract NFT is ERC721, Ownable {
 
     /// @notice This function is used to convert all funds collected after mint to USDC and withdraws it to Rewards.sol.
     function swapToUSDCandWithdraw() external onlyOwner {
-
 
     }
 
