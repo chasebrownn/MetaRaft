@@ -46,6 +46,7 @@ contract NFTTest is Test, Utility {
     function test_mintDapp_SaleActive() public{
         // Whitelsit Art
         raftToken.modifyWhitelist(address(art), true);
+
         // No sales are active
         assert(!raftToken.publicSaleActive());
         assert(!raftToken.whitelistSaleActive());
@@ -97,7 +98,7 @@ contract NFTTest is Test, Utility {
         //Mint max wallet size
         assert(joe.try_mintDapp{value: 20 ether}(address(raftToken), 20, 20 ether));
         //Increment 1 
-        joe.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether);
+        assert(!joe.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
     }
 
     function test_mintDapp_salePrice() public {
@@ -106,9 +107,29 @@ contract NFTTest is Test, Utility {
         assert(!joe.try_mintDapp{value: 1 ether}(address(raftToken), 2, 1 ether));
     }
 
-    function testFail_StateConflict() public{
+    function test_StateConflict() public{
         raftToken.setWhitelistSaleState(true);  
         raftToken.setPublicSaleState(true);
+        raftToken.modifyWhitelist(address(art), true);
+
+        // Both Whitelist and none whitelist can mint
+        assert(joe.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
+        assert(art.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
+
+        raftToken.setWhitelistSaleState(false);  
+        raftToken.setPublicSaleState(false);
+        assert(!joe.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
+        assert(!art.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
+
+
+        raftToken.setWhitelistSaleState(true);  
+        assert(!joe.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
+        assert(art.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
+        
+        raftToken.setWhitelistSaleState(false);  
+        raftToken.setPublicSaleState(true);
+        assert(joe.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
+        assert(art.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
     }
 
     function test_setBaseURI() public {
@@ -125,11 +146,7 @@ contract NFTTest is Test, Utility {
         assert(joe.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
         // Call TokenURI for id 1
         assert(joe.try_tokenURI(address(raftToken), 1));
-
         assertEq(raftToken.tokenURI(1), "URI/1.json");
-
-
-
     }
 
     function test_tokenURI_Update() public {
@@ -147,19 +164,29 @@ contract NFTTest is Test, Utility {
     }
     
     function test_onlyOwner() public {
+        raftToken.transferOwnership(address(dev));
         //Fail calling all onlyOwner
         assert(!joe.try_setBaseURI(address(raftToken), "Arbitrary String"));
         assert(!joe.try_modifyWhitelistRoot(address(raftToken), "Arbitrary String"));
         assert(!joe.try_setRewardsAddress(address(raftToken), address(rwd)));
         assert(!joe.try_setPublicSaleState(address(raftToken), true));
         assert(!joe.try_setWhitelistSaleState(address(raftToken), true));
+        
+        //Success calling all onlyOwner
+        assert(dev.try_setBaseURI(address(raftToken), "Arbitrary String"));
+        assert(dev.try_modifyWhitelistRoot(address(raftToken), "Arbitrary String"));
+        assert(dev.try_setRewardsAddress(address(raftToken), address(rwd)));
+        assert(dev.try_setPublicSaleState(address(raftToken), true));
+        assert(dev.try_setWhitelistSaleState(address(raftToken), true));
     }
+
     function test_isRewards() public {
         //Set rewards contract
         raftToken.setRewardsAddress(address(rwd));
-        // Verify reward contract has been updated
+        //Verify reward contract has been updated
         assertEq(address(rwd), raftToken.rewardsContract());
     }
+
     function test_rewards_limitations() public {
         //Set rewards contract as non-owner
         assert(!dev.try_setRewardsAddress(address(raftToken), address(rwd)));
@@ -169,7 +196,7 @@ contract NFTTest is Test, Utility {
         assert(dev.try_setRewardsAddress(address(raftToken), address(rwd)));
         
         //Set Rewards contract to address 0
-         assert(!dev.try_setRewardsAddress(address(raftToken), address(0)));
+        assert(!dev.try_setRewardsAddress(address(raftToken), address(0)));
 
         //Set Rewards contract to address same address
         assert(!dev.try_setRewardsAddress(address(raftToken), address(rwd)));

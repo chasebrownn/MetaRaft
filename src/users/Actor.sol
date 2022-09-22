@@ -26,7 +26,6 @@ contract Actor {
         (ok, ) = address(token).call{value: _value}(abi.encodeWithSignature(sig, _amount));
     }
 
-
     function try_tokenURI(address token, uint256 _id) external returns (bool ok) {
          string memory sig = "tokenURI(uint256)";
          (ok,) = address(token).call(abi.encodeWithSignature(sig, _id));
@@ -56,5 +55,4 @@ contract Actor {
          string memory sig = "setWhitelistSaleState(bool)";
          (ok,) = address(token).call(abi.encodeWithSignature(sig, _state));
     }    
-
 }

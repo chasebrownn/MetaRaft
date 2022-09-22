@@ -68,10 +68,11 @@ contract NFT is ERC721, Ownable {
         require(balanceOf(msg.sender) + _amount <= maxRaftPurchase, "NFT.sol::mintDapp() Transaction exceeds maximum purchase restriction (20)");
         require(raftPrice * _amount <= msg.value, "NFT.sol::mintDapp() Message value must be greater than price of NFTs");
         require(whitelistSaleActive || publicSaleActive, "NFT.sol::mintDapp() No sale is currently active");
-        if (whitelistSaleActive) {
-            mintWhitelist(msg.sender, _amount);
-        } else if (publicSaleActive) {
-            mintPublic(msg.sender, _amount);
+        if (publicSaleActive) {
+            mint(msg.sender, _amount);
+        } else if (whitelistSaleActive) {
+            require(merkleCheck(msg.sender), "NFT.sol::mintWhitelist() Wallet is not whitelisted");
+            mint(msg.sender, _amount);
         }
     }
 
@@ -83,7 +84,7 @@ contract NFT is ERC721, Ownable {
     }
 
     /// @notice handles minting for public sale
-    function mintPublic(address _address, uint256 _amount) internal {
+    function mint(address _address, uint256 _amount) internal {
         for (uint256 i = 0; i < _amount; i++) {
             _mint(_address, currentTokenId);
             emit Transfer(address(0), msg.sender, currentTokenId);
@@ -91,16 +92,7 @@ contract NFT is ERC721, Ownable {
         }
     }
 
-    /// @notice handles minting for whitelist sale
-    function mintWhitelist(address _address, uint256 _amount) internal {
-        // verify merkle proof and address beforehand
-        require(merkleCheck(msg.sender), "NFT.sol::mintWhitelist() Wallet is not whitelisted");
-        for (uint256 i = 0; i < _amount; i++) {
-            _mint(_address, currentTokenId);
-            emit Transfer(address(0), msg.sender, currentTokenId);
-            currentTokenId++;
-        }
-    }
+
 
 
 
@@ -119,7 +111,6 @@ contract NFT is ERC721, Ownable {
     /// @param _state true if public sale is active
     function setPublicSaleState(bool _state) public onlyOwner {
         require(publicSaleActive != _state, "NFT.sol::setPubliclistSaleState() _state cannot be same as before ");
-        require(!whitelistSaleActive, "NFT.sol::setPublicSaleState() Public sale currently active");
         publicSaleActive = _state;
     }
 
@@ -127,7 +118,6 @@ contract NFT is ERC721, Ownable {
     /// @param _state true if whitelist sale is active
     function setWhitelistSaleState(bool _state) public onlyOwner {
         require(whitelistSaleActive != _state, "NFT.sol::setWhitelistSaleState() _state cannot be same as before ");
-        require(!publicSaleActive, "NFT.sol::setWhitelistSaleState() Public sale currently active");
         whitelistSaleActive = _state;
     }
 
@@ -217,6 +207,6 @@ contract NFT is ERC721, Ownable {
     /// @notice This function is used to convert all funds collected after mint to USDC and withdraws it to Rewards.sol.
     function swapToUSDCandWithdraw() external onlyOwner {
 
-        }
+    }
 
 }
