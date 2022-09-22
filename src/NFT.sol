@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "src/libraries/Ownable.sol";
-import "src/libraries/Strings.sol";
-import "src/interfaces/ERC721.sol";
+import "./libraries/Ownable.sol";
+import "./libraries/Strings.sol";
+import "./interfaces/ERC721.sol";
 
 contract NFT is ERC721, Ownable {
     using Strings for uint256;
