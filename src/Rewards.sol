@@ -17,6 +17,7 @@ contract Rewards is Ownable {
     }                                        /// @notice Used to store the rewards tier in an easier to read format.
 
 
+
     // -----------
     // Constructor
     // -----------
@@ -31,11 +32,10 @@ contract Rewards is Ownable {
     }
 
 
+
     // ---------
     // Modifiers
     // ---------
-
-
 
     /// @notice Only authorized NFT contract can call functions with this modifier.
     modifier isNFTContract() {
@@ -49,10 +49,11 @@ contract Rewards is Ownable {
         _;
     }
 
+
+
     // ---------
     // Functions
     // ---------
-
 
     /// @notice Allows NFT contract to deposit mint USDC.
     /// @notice Allows user to invest ETH into the REIT.
@@ -61,21 +62,32 @@ contract Rewards is Ownable {
 
     }
 
-    /// @notice Allows owner to allow redeeming of rewards by users.
+    /// @notice Allows owner to enable redeeming of rewards by users.
     /// @param _sanity Uint256 to verify sanity.
     function openRedeemWindow(uint256 _sanity) external onlyOwner() {
 
     }
+
+    /// @notice Allows owner to disable redeeming of rewards by users.
+    /// @param _sanity Uint256 to verify sanity.
+    function closeRedeemWindow(uint256 _sanity) external onlyOwner() {
+
+    }   
 
     /// @notice Used to recieve the list of winning IDs from the python bot.
     function setWinners() external isPythonScript() {
 
     }
 
-    /// @notice Used to retrieve all winning IDs
+    /// @notice Used to retrieve all winning IDs.
     function getWinners() external onlyOwner() {
 
     }
 
+    /// @notice Used to determine if an NFT is above tier one. 
+    /// @param _id NFT id that is atempting to be redeemed.
+    function getResults(uint256 _id) public onlyOwner() {
+
+    }
 
 }
