@@ -204,8 +204,8 @@ contract NFT is ERC721, Ownable {
         rewardsContract = _rewardsContract;
     }
 
-    /// @notice This function is used to convert all funds collected after mint to USDC and withdraws it to Rewards.sol.
-    function swapToUSDCandWithdraw() external onlyOwner {
+    /// @notice This function is used to withdraw all ETH to Rewards.sol.
+    function withdraw() external onlyOwner {
 
     }
 

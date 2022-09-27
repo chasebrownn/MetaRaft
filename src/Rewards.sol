@@ -8,8 +8,10 @@ contract Rewards is Ownable {
     // State Variables
     // ---------------
 
-    address public stableCurrency; /// @notice Used to store address of coin used to deposit/payout from Rewards.sol.
-    address public nftContract; /// @notice Used to store the address of the NFT contract.
+    address public stableCurrency;          /// @notice Used to store address of coin used to deposit/payout from Rewards.sol.
+    address public nftContract;             /// @notice Used to store the address of the NFT contract.
+    address public pythonScript;            /// @notice Used to store the address of the python script.
+
     enum rewardTiers {                       
         TIER_ONE, TIER_TWO, TIER_THREE, TIER_FOUR, TIER_FIVE, TIER_SIX
     }                                        /// @notice Used to store the rewards tier in an easier to read format.
@@ -27,5 +29,53 @@ contract Rewards is Ownable {
         nftContract = _nftContract;
         transferOwnership(msg.sender);
     }
+
+
+    // ---------
+    // Modifiers
+    // ---------
+
+
+
+    /// @notice Only authorized NFT contract can call functions with this modifier.
+    modifier isNFTContract() {
+        require(address(msg.sender) == nftContract, "Rewards.sol::isNFTContract() Caller is not the NFT contract");
+        _;
+    }
+
+    /// @notice Only authorized NFT contract can call functions with this modifier.
+    modifier isPythonScript() {
+        require(address(msg.sender) == pythonScript, "Rewards.sol::isPythonScript() Caller is not the python script");
+        _;
+    }
+
+    // ---------
+    // Functions
+    // ---------
+
+
+    /// @notice Allows NFT contract to deposit mint USDC.
+    /// @notice Allows user to invest ETH into the REIT.
+    /// @dev ETH is not ERC20, needs to be wrapped using the WETH contract.
+    function depositETH() external payable isNFTContract() {
+
+    }
+
+    /// @notice Allows owner to allow redeeming of rewards by users.
+    /// @param _sanity Uint256 to verify sanity.
+    function openRedeemWindow(uint256 _sanity) external onlyOwner() {
+
+    }
+
+    /// @notice Used to recieve the list of winning IDs from the python bot.
+    function setWinners() external isPythonScript() {
+
+    }
+
+    /// @notice Used to retrieve all winning IDs
+    function getWinners() external onlyOwner() {
+
+    }
+
 
 }
