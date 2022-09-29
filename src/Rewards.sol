@@ -11,6 +11,7 @@ contract Rewards is Ownable {
     address public stableCurrency;          /// @notice Used to store address of coin used to deposit/payout from Rewards.sol.
     address public nftContract;             /// @notice Used to store the address of the NFT contract.
     address public pythonScript;            /// @notice Used to store the address of the python script.
+    bool public redemptionEnabled;          /// @notice Used to enable/disable redemptions.
 
     enum rewardTiers {                       
         TIER_ONE, TIER_TWO, TIER_THREE, TIER_FOUR, TIER_FIVE, TIER_SIX
@@ -65,12 +66,19 @@ contract Rewards is Ownable {
     /// @notice Allows owner to enable redeeming of rewards by users.
     /// @param _sanity Uint256 to verify sanity.
     function openRedeemWindow(uint256 _sanity) external onlyOwner() {
+        require(_sanity == 42, "Rewards.sol::openRedeemWindow() _sanity must be 42 to confirm");
+        require(redemptionEnabled == false, "Rewards.sol::openRedeemWindow() redemption window is already active");
 
+        redemptionEnabled = true;
     }
 
     /// @notice Allows owner to disable redeeming of rewards by users.
     /// @param _sanity Uint256 to verify sanity.
     function closeRedeemWindow(uint256 _sanity) external onlyOwner() {
+        require(_sanity == 42, "Rewards.sol::closeRedeemWindow() _sanity must be 42 to confirm");
+        require(redemptionEnabled == true, "Rewards.sol::closeRedeemWindow() redemption window is already inactive");
+        
+        redemptionEnabled = false;
 
     }   
 
