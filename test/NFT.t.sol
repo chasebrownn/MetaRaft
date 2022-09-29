@@ -18,17 +18,16 @@ contract NFTTest is Test, Utility {
 
         // Initialize NFT contract.
         raftToken = new NFT(
-            "RaftToken",                                    // Name of collection.
-            "RT"                                            // Symbol of collection.
+            "RaftToken",                        // Name of collection.
+            "RT"                                // Symbol of collection.
         );
 
         // Initialize Rewards contract.
         reward = new Rewards(
-            USDC,                                           //USDC Address.
-            address(raftToken)                              //NFT Address.
+            USDC,                               // USDC Address.
+            address(raftToken)                  // NFT Address.
         ); 
     }
-
 
     /// @notice tests intial values set in the constructor.
     function test_nft_init_state() public {

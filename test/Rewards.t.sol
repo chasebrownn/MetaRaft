@@ -18,25 +18,21 @@ contract RewardsTest is Test, Utility {
 
         // Initialize NFT contract.
         raftToken = new NFT(
-            "RaftToken",                // Name of collection
-            "RT"                        // Symbol of collection
+            "RaftToken",                        // Name of collection.
+            "RT"                                // Symbol of collection.
         );
 
         // Initialize Rewards contract.
         reward = new Rewards(
-            USDC,                       //USDC Address
-            address(raftToken)          //NFT Address
+            USDC,                               // USDC Address.
+            address(raftToken)                  // NFT Address.
         ); 
     }
 
     /// @notice tests intial values set in the constructor.
     function test_rewards_init_state() public {
-        assertEq(raftToken.symbol(), "RT");
-        assertEq(raftToken.name(), "RaftToken");
-        assertEq(raftToken.totalSupply(), 10000);
-        assertEq(raftToken.raftPrice(), 1 ether);
-
         assertEq(reward.stableCurrency(), USDC);
         assertEq(reward.nftContract(), address(raftToken));
+
     }
 }
