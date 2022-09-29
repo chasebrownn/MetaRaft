@@ -10,8 +10,10 @@ import "./libraries/Ownable.sol";
 ///         - Verify NFT authenticity 
 ///         - Distribute rewards
 ///         - Enable/Disable rewards window
+///         - Get which IDs have redeemed rewards previously
 
 contract Rewards is Ownable {
+
     // ---------------
     // State Variables
     // ---------------
@@ -103,6 +105,12 @@ contract Rewards is Ownable {
     /// @notice Used to determine if an NFT is above tier one. 
     /// @param _id NFT id that is atempting to be redeemed.
     function getResults(uint256 _id) public onlyOwner() {
+
+    }
+
+    /// @notice Used to determine if an NFT has already been redeemed. 
+    /// @param _id NFT id that is atempting to be redeemed.
+    function isRedeemed(uint256 _id) public onlyOwner() {
 
     }
 
