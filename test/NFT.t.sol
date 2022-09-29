@@ -16,18 +16,22 @@ contract NFTTest is Test, Utility {
         createActors();
         setUpTokens();
 
-        // nft constructor
+        // Initialize NFT contract
         raftToken = new NFT(
-            "RaftToken", // Name of collection
-            "RT"         // Symbol of collection
+            "RaftToken",                                    // Name of collection
+            "RT"                                            // Symbol of collection
         );
 
-        //TODO: Initialize Rewards contract
+        // Initialize Rewards contract
+        reward = new Rewards(
+            USDC,                                           //USDC Address
+            address(raftToken)                              //NFT Address
+        ); 
     }
 
 
     /// @notice tests intial values set in the constructor
-    function test_init_state() public {
+    function test_nft_init_state() public {
         assertEq(raftToken.symbol(), "RT");
         assertEq(raftToken.name(), "RaftToken");
         assertEq(raftToken.totalSupply(), 10000);
@@ -36,14 +40,14 @@ contract NFTTest is Test, Utility {
 
     /// @notice tests that minting mints the proper quantity and ID of token
     /// @dev when using try_mintDapp pass message value with the function call and as a parameter
-    function test_mintDapp_public_simple() public {
+    function test_nft_mintDapp_public_simple() public {
         raftToken.setPublicSaleState(true);
         assert(joe.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
         assertEq(raftToken.ownerOf(1), address(joe));
         assertEq(raftToken.balanceOf(address(joe)), 1);
     }
 
-    function test_mintDapp_SaleActive() public{
+    function test_nft_mintDapp_SaleActive() public{
         // Whitelsit Art
         raftToken.modifyWhitelist(address(art), true);
 
@@ -74,7 +78,7 @@ contract NFTTest is Test, Utility {
         assertEq(raftToken.balanceOf(address(art)), 2);
     }
 
-    function test_mintDapp_totalSupply() public {
+    function test_nft_mintDapp_totalSupply() public {
         raftToken.setPublicSaleState(true);
 
         // Mint 10_000 NFTs (max supply)
@@ -91,7 +95,7 @@ contract NFTTest is Test, Utility {
 
     }
 
-    function test_mintDapp_maxRaftPurchase() public {
+    function test_nft_mintDapp_maxRaftPurchase() public {
         raftToken.setPublicSaleState(true);
         // Mint more than max 
         assert(!joe.try_mintDapp{value: 21 ether}(address(raftToken), 21, 21 ether));
@@ -101,13 +105,13 @@ contract NFTTest is Test, Utility {
         assert(!joe.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
     }
 
-    function test_mintDapp_salePrice() public {
+    function test_nft_mintDapp_salePrice() public {
         raftToken.setPublicSaleState(true);
         assert(!joe.try_mintDapp{value: .9 ether}(address(raftToken), 1, .9 ether));
         assert(!joe.try_mintDapp{value: 1 ether}(address(raftToken), 2, 1 ether));
     }
 
-    function test_StateConflict() public{
+    function test_nft_StateConflict() public{
         raftToken.setWhitelistSaleState(true);  
         raftToken.setPublicSaleState(true);
         raftToken.modifyWhitelist(address(art), true);
@@ -132,13 +136,13 @@ contract NFTTest is Test, Utility {
         assert(art.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
     }
 
-    function test_setBaseURI() public {
+    function test_nft_setBaseURI() public {
         assertEq(raftToken.baseURI(), "");
         raftToken.setBaseURI("Arbitrary String");
         assertEq(raftToken.baseURI(), "Arbitrary String");
     }
 
-    function test_tokenURI_Basic() public {
+    function test_nft_tokenURI_Basic() public {
         //Allow mint + set baseURI
         raftToken.setBaseURI("URI/");
         raftToken.setPublicSaleState(true);
@@ -149,7 +153,7 @@ contract NFTTest is Test, Utility {
         assertEq(raftToken.tokenURI(1), "URI/1.json");
     }
 
-    function test_tokenURI_Update() public {
+    function test_nft_tokenURI_Update() public {
         //Set baseURI and enable public sale
         raftToken.setBaseURI("URI/");
         raftToken.setPublicSaleState(true);
@@ -163,7 +167,7 @@ contract NFTTest is Test, Utility {
         assertEq(raftToken.tokenURI(1), "UpdatedURI/1.json");
     }
     
-    function test_onlyOwner() public {
+    function test_nft_onlyOwner() public {
         raftToken.transferOwnership(address(dev));
         //Fail calling all onlyOwner
         assert(!joe.try_setBaseURI(address(raftToken), "Arbitrary String"));
@@ -180,14 +184,14 @@ contract NFTTest is Test, Utility {
         assert(dev.try_setWhitelistSaleState(address(raftToken), true));
     }
 
-    function test_isRewards() public {
+    function test_nft_isRewards() public {
         //Set rewards contract
         raftToken.setRewardsAddress(address(rwd));
         //Verify reward contract has been updated
         assertEq(address(rwd), raftToken.rewardsContract());
     }
 
-    function test_rewards_limitations() public {
+    function test_nft_rewards_limitations() public {
         //Set rewards contract as non-owner
         assert(!dev.try_setRewardsAddress(address(raftToken), address(rwd)));
         //Set Owner

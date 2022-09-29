@@ -11,6 +11,7 @@ import "./interfaces/ERC721.sol";
 ///         - Tradeable
 ///         - 6 unique art pieces 
 ///         - Support whitelist mints
+///         - Withdraw ETH to rewards.sol contract
 ///         - NOTE: Rewards are ***NON-TRANSFFERABLE***
 ///                 After mint the ORIGINAL wallet that minted the NFT MUST be the one to collect rewards from the front end.
 ///                 Only TIER_ONE NFTs are intended to be transffered as they will only be drawn at the end of the year.
@@ -36,8 +37,8 @@ contract NFT is ERC721, Ownable {
 
     bytes32 private merkleRoot;         /// @notice Root hash used for verifying whitelisted addresses.
     address public rewardsContract;     /// @notice Stores the contract address of Rewards.sol.
-    bool public publicSaleActive;       /// @notice Controls the access for public mint
-    bool public whitelistSaleActive;    /// @notice Controls the access for whitelist mint
+    bool public publicSaleActive;       /// @notice Controls the access for public mint.
+    bool public whitelistSaleActive;    /// @notice Controls the access for whitelist mint.
 
 
 
@@ -94,9 +95,9 @@ contract NFT is ERC721, Ownable {
         }
     }
 
-    /// @notice This function will verify whitelist status using a merkle proof received from the front-end
-    /// @dev this function will check whitelist against a mapping until front-end implementation
-    /// TODO: create a low level dapp to test merkle tree
+    /// @notice This function will verify whitelist status using a merkle proof received from the front-end.
+    /// @dev this function will check whitelist against a mapping until front-end implementation.
+    /// TODO: create a low level dapp to test merkle tree.
     function merkleCheck(address _address) internal view returns (bool) {
         return (whitelistMinted[_address]);
     }
@@ -123,15 +124,15 @@ contract NFT is ERC721, Ownable {
         // burn all tokenIds from currentTokenId up to totalSupply
     }
 
-    /// @notice This function toggles public sale
-    /// @param _state true if public sale is active
+    /// @notice This function toggles public sale.
+    /// @param _state true if public sale is active.
     function setPublicSaleState(bool _state) public onlyOwner {
         require(publicSaleActive != _state, "NFT.sol::setPubliclistSaleState() _state cannot be same as before");
         publicSaleActive = _state;
     }
 
-    /// @notice This function toggles whitelist sale
-    /// @param _state true if whitelist sale is active
+    /// @notice This function toggles whitelist sale.
+    /// @param _state true if whitelist sale is active.
     function setWhitelistSaleState(bool _state) public onlyOwner {
         require(whitelistSaleActive != _state, "NFT.sol::setWhitelistSaleState() _state cannot be same as before");
         whitelistSaleActive = _state;
@@ -202,8 +203,8 @@ contract NFT is ERC721, Ownable {
     
 
 
-    /// @notice This function is used to update the merkleRoot
-    /// @param _merkleRoot is the root of the whitelist merkle tree
+    /// @notice This function is used to update the merkleRoot.
+    /// @param _merkleRoot is the root of the whitelist merkle tree.
     function modifyWhitelistRoot(bytes32 _merkleRoot) public onlyOwner {
         require(_merkleRoot != bytes32(""), "NFT.sol::modifyWhitelistRoot Merkle root cannot be empty");
         require(_merkleRoot != merkleRoot, "NFT.sol::modifyWhitelistRoot Merkle root cannot be the same as before");
@@ -211,6 +212,7 @@ contract NFT is ERC721, Ownable {
         merkleRoot = _merkleRoot;
     }
 
+    /// @notice This function is used to set the rewards.sol contract address.
     /// @param  _rewardsContract is the wallet address that will have their whitelist status modified.
     function setRewardsAddress(address _rewardsContract) external onlyOwner {
         require(_rewardsContract != address(0), "NFT.sol::setRewardsAddress() Reward.sol address cannot be address(0)");

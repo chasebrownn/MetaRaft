@@ -33,7 +33,7 @@ contract Rewards is Ownable {
     // Constructor
     // -----------
 
-    /// @notice Initializes Rewards.sol
+    /// @notice Initializes Rewards.sol.
     /// @param _stableCurrency Used to store address of stablecoin used in contract (default is USDC).
     /// @param _nftContract Used to store the address of the NFT contract ($META).
     constructor(address _stableCurrency, address _nftContract) {
@@ -111,6 +111,14 @@ contract Rewards is Ownable {
     /// @notice Used to determine if an NFT has already been redeemed. 
     /// @param _id NFT id that is atempting to be redeemed.
     function isRedeemed(uint256 _id) public onlyOwner() {
+
+    }
+
+    /// @notice Used to set the python script address.
+    /// @param _pythonScript The address the python script is using.
+    function setPythonScript(address _pythonScript) public onlyOwner() {
+        require(_pythonScript != pythonScript, "Rewards.sol pythonScript is already set to this address");
+        pythonScript = _pythonScript;
 
     }
 
