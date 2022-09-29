@@ -3,6 +3,14 @@ pragma solidity ^0.8.13;
 
 import "./libraries/Ownable.sol";
 
+/// @dev    This non-standard contract is used to manage and distribute rewards acrewed after mint of NFT.sol.
+///         This contract should support the following functionalities:
+///         - Set winners (Based off of chainlink or python script)
+///         - Get winners list
+///         - Verify NFT authenticity 
+///         - Distribute rewards
+///         - Enable/Disable rewards window
+
 contract Rewards is Ownable {
     // ---------------
     // State Variables

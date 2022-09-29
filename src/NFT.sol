@@ -5,6 +5,16 @@ import "./libraries/Ownable.sol";
 import "./libraries/Strings.sol";
 import "./interfaces/ERC721.sol";
 
+/// @dev    This ERC721 contract represents a standard NFT contract that holds unique art and rewards data.
+///         This contract should support the following functionalities:
+///         - Mintable
+///         - Tradeable
+///         - 6 unique art pieces 
+///         - Support whitelist mints
+///         - NOTE: Rewards are ***NON-TRANSFFERABLE***
+///                 After mint the ORIGINAL wallet that minted the NFT MUST be the one to collect rewards from the front end.
+///                 Only TIER_ONE NFTs are intended to be transffered as they will only be drawn at the end of the year.
+
 contract NFT is ERC721, Ownable {
     using Strings for uint256;
 
@@ -29,6 +39,8 @@ contract NFT is ERC721, Ownable {
     bool public publicSaleActive;       /// @notice Controls the access for public mint
     bool public whitelistSaleActive;    /// @notice Controls the access for whitelist mint
 
+
+
     // -----------
     // Constructor
     // -----------
@@ -36,7 +48,11 @@ contract NFT is ERC721, Ownable {
     /// @notice Initializes MetaRaft.sol.
     constructor(string memory _name, string memory _symbol)
         ERC721(_name, _symbol)
-    {}
+    {
+
+    }
+
+
 
     // ---------
     // Modifiers
@@ -46,6 +62,8 @@ contract NFT is ERC721, Ownable {
         require(rewardsContract == sender, "NFT.sol::isRewards() msg.sender is not Rewards.sol");
         _;
     }
+
+
 
     // ---------
     // Functions
@@ -94,8 +112,6 @@ contract NFT is ERC721, Ownable {
 
 
 
-
-
     // ---------------
     // Owner Functions
     // ---------------
@@ -110,14 +126,14 @@ contract NFT is ERC721, Ownable {
     /// @notice This function toggles public sale
     /// @param _state true if public sale is active
     function setPublicSaleState(bool _state) public onlyOwner {
-        require(publicSaleActive != _state, "NFT.sol::setPubliclistSaleState() _state cannot be same as before ");
+        require(publicSaleActive != _state, "NFT.sol::setPubliclistSaleState() _state cannot be same as before");
         publicSaleActive = _state;
     }
 
     /// @notice This function toggles whitelist sale
     /// @param _state true if whitelist sale is active
     function setWhitelistSaleState(bool _state) public onlyOwner {
-        require(whitelistSaleActive != _state, "NFT.sol::setWhitelistSaleState() _state cannot be same as before ");
+        require(whitelistSaleActive != _state, "NFT.sol::setWhitelistSaleState() _state cannot be same as before");
         whitelistSaleActive = _state;
     }
 
