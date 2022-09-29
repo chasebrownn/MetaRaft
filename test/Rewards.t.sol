@@ -16,20 +16,20 @@ contract RewardsTest is Test, Utility {
         createActors();
         setUpTokens();
 
-        // Initialize NFT contract
+        // Initialize NFT contract.
         raftToken = new NFT(
             "RaftToken",                // Name of collection
             "RT"                        // Symbol of collection
         );
 
-        // Initialize Rewards contract
+        // Initialize Rewards contract.
         reward = new Rewards(
             USDC,                       //USDC Address
             address(raftToken)          //NFT Address
         ); 
     }
 
-    /// @notice tests intial values set in the constructor
+    /// @notice tests intial values set in the constructor.
     function test_rewards_init_state() public {
         assertEq(raftToken.symbol(), "RT");
         assertEq(raftToken.name(), "RaftToken");

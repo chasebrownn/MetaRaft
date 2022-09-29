@@ -16,21 +16,21 @@ contract NFTTest is Test, Utility {
         createActors();
         setUpTokens();
 
-        // Initialize NFT contract
+        // Initialize NFT contract.
         raftToken = new NFT(
-            "RaftToken",                                    // Name of collection
-            "RT"                                            // Symbol of collection
+            "RaftToken",                                    // Name of collection.
+            "RT"                                            // Symbol of collection.
         );
 
-        // Initialize Rewards contract
+        // Initialize Rewards contract.
         reward = new Rewards(
-            USDC,                                           //USDC Address
-            address(raftToken)                              //NFT Address
+            USDC,                                           //USDC Address.
+            address(raftToken)                              //NFT Address.
         ); 
     }
 
 
-    /// @notice tests intial values set in the constructor
+    /// @notice tests intial values set in the constructor.
     function test_nft_init_state() public {
         assertEq(raftToken.symbol(), "RT");
         assertEq(raftToken.name(), "RaftToken");
@@ -38,8 +38,8 @@ contract NFTTest is Test, Utility {
         assertEq(raftToken.raftPrice(), 1 ether);
     }
 
-    /// @notice tests that minting mints the proper quantity and ID of token
-    /// @dev when using try_mintDapp pass message value with the function call and as a parameter
+    /// @notice tests that minting mints the proper quantity and ID of token.
+    /// @dev when using try_mintDapp pass message value with the function call and as a parameter.
     function test_nft_mintDapp_public_simple() public {
         raftToken.setPublicSaleState(true);
         assert(joe.try_mintDapp{value: 1 ether}(address(raftToken), 1, 1 ether));
@@ -47,6 +47,7 @@ contract NFTTest is Test, Utility {
         assertEq(raftToken.balanceOf(address(joe)), 1);
     }
 
+    // TODO: Add natspec to these test cases
     function test_nft_mintDapp_SaleActive() public{
         // Whitelsit Art
         raftToken.modifyWhitelist(address(art), true);
