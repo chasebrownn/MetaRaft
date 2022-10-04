@@ -3,6 +3,10 @@ pragma solidity ^0.8.13;
 
 import "./libraries/Ownable.sol";
 
+import { SafeERC20 } from "./interfaces/SafeERC20.sol";
+import { IERC20, IWETH, ITreasury, curve3PoolStableSwap, curveTriCrypto2StableSwap } from "./interfaces/InterfacesAggregated.sol";
+import { IERC20 } from "./interfaces/InterfacesAggregated.sol";
+
 /// @dev    This non-standard contract is used to manage and distribute rewards acrewed after mint of NFT.sol.
 ///         This contract should support the following functionalities:
 ///         - Set winners (Based off of chainlink or python script)
@@ -18,6 +22,9 @@ contract Rewards is Ownable {
     // State Variables
     // ---------------
 
+    using SafeERC20 for IERC20;
+
+    address public multiSig;                /// @notice Used to store address of the metaraft official multi-sig wallet.
     address public stableCurrency;          /// @notice Used to store address of coin used to deposit/payout from Rewards.sol.
     address public nftContract;             /// @notice Used to store the address of the NFT contract.
     address public pythonScript;            /// @notice Used to store the address of the python script.
@@ -27,6 +34,14 @@ contract Rewards is Ownable {
         TIER_ONE, TIER_TWO, TIER_THREE, TIER_FOUR, TIER_FIVE, TIER_SIX
     }                                        /// @notice Used to store the rewards tier in an easier to read format.
 
+    // contract addresses
+    address constant USDC  = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address constant USDT  = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+    address constant WETH  = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+
+    // curve swap addresses
+    address constant _3POOL_SWAP_ADDRESS = 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7;
+    address constant _TRICRYPTO2_SWAP_ADDRESS = 0xD51a44d3FaE010294C616388b506AcdA1bfAAE46;
 
 
     // -----------
@@ -120,6 +135,25 @@ contract Rewards is Ownable {
         require(_pythonScript != pythonScript, "Rewards.sol pythonScript is already set to this address");
         pythonScript = _pythonScript;
 
+    }
+
+    /// @notice Calls the Curve API to swap all ETH assets to USDC and transfers to MultiSig Wallet.
+    function convertToStable() public onlyOwner(){
+        uint256 _amount = address(this).balance;
+
+        require(_amount > 0, "Rewards.sol::convertToStable() Amount must be greater than 0");
+
+        uint256 min_dy = 1;
+
+        assert(IERC20(WETH).approve(_TRICRYPTO2_SWAP_ADDRESS, _amount));
+        curveTriCrypto2StableSwap(_TRICRYPTO2_SWAP_ADDRESS).exchange(uint256(2), uint256(0), _amount, min_dy);
+
+        IERC20(USDT).safeApprove(_3POOL_SWAP_ADDRESS, uint256(IERC20(USDT).balanceOf(address(this))));
+        curve3PoolStableSwap(_3POOL_SWAP_ADDRESS).exchange(int128(2), int128(1), uint256(IERC20(USDT).balanceOf(address(this))), min_dy);
+
+        // Transfer swapped asset to MultiSig Wallet.
+        uint256 amountUSDC = IERC20(USDC).balanceOf(address(this));
+        assert(IERC20(USDC).transfer(multiSig, amountUSDC));
     }
 
 }

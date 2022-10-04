@@ -134,3 +134,16 @@ interface ISwapRouter {
 
 }
 
+interface ITreasury {
+    function updateStableReceived(address _wallet, uint _amount, uint _timeUnix) external;
+}
+
+// DAI, USDC, USDT
+interface curve3PoolStableSwap {
+    function exchange(int128 i, int128 j, uint256 dx, uint256 min_dy) external;
+}
+
+// USDT, WBTC, WETH
+interface curveTriCrypto2StableSwap {
+    function exchange(uint256 i, uint256 j, uint256 dx, uint256 min_dy) external; //TODO: is this correct?
+}
