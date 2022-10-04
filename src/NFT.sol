@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "./libraries/Ownable.sol";
 import "./libraries/Strings.sol";
-import "./interfaces/ERC721.sol";
+import "./libraries/ERC721.sol";
 
 /// @dev    This ERC721 contract represents a standard NFT contract that holds unique art and rewards data.
 ///         This contract should support the following functionalities:
