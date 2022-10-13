@@ -21,8 +21,8 @@ contract Actor {
     //      string memory sig = "updateTreasury(address)";
     //      (ok,) = address(stake).call(abi.encodeWithSignature(sig, _newTreasury));
     // }
-    function try_mintDapp(address token, uint256 _amount, uint256 _value) external payable returns (bool ok) {
-        string memory sig = "mintDapp(uint256)";
+    function try_mint(address token, uint256 _amount, uint256 _value) external payable returns (bool ok) {
+        string memory sig = "mint(uint256)";
         (ok, ) = address(token).call{value: _value}(abi.encodeWithSignature(sig, _amount));
     }
 
@@ -55,4 +55,9 @@ contract Actor {
          string memory sig = "setWhitelistSaleState(bool)";
          (ok,) = address(token).call(abi.encodeWithSignature(sig, _state));
     }    
+
+    function try_ownedTokens(address token) external returns (bool ok) {
+          string memory sig = "ownedTokens()";
+          (ok,) = address(token).call(abi.encodeWithSignature(sig));
+    }
 }
