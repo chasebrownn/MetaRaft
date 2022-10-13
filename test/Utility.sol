@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.6;
+pragma solidity ^0.8.13;
 
 import "../src/users/Actor.sol";
 import "../lib/forge-std/src/Vm.sol";
@@ -26,6 +26,7 @@ contract Utility is Test {
     Actor art = new Actor(); // Art Contract
     Actor tkt = new Actor(); // Ticket Contract
     Actor rwd = new Actor(); // Rewards Contract
+    Actor mlt = new Actor(); // Multi Sig wallet address
 
     /*****************/
     /*** Constants ***/
@@ -54,6 +55,7 @@ contract Utility is Test {
         art = new Actor();
         tkt = new Actor();
         rwd = new Actor();
+        mlt = new Actor();
     }
 
     mapping(bytes32 => Token) tokens;

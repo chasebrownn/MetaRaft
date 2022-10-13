@@ -49,12 +49,12 @@ contract Rewards is Ownable {
     // -----------
 
     /// @notice Initializes Rewards.sol.
-    /// @param _stableCurrency Used to store address of stablecoin used in contract (default is USDC).
     /// @param _nftContract Used to store the address of the NFT contract ($META).
-    constructor(address _stableCurrency, address _nftContract) {
-        stableCurrency = _stableCurrency;
+    constructor(address _nftContract, address _multiSig, address _admin) {
         nftContract = _nftContract;
-        transferOwnership(msg.sender);
+        multiSig = _multiSig;
+        transferOwnership(_admin);
+
     }
 
 
@@ -139,7 +139,8 @@ contract Rewards is Ownable {
 
     /// @notice Calls the Curve API to swap all ETH assets to USDC and transfers to MultiSig Wallet.
     function convertToStable() public onlyOwner(){
-        uint256 _amount = address(this).balance;
+        // WETH address
+        uint256 _amount = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2).balanceOf(address(this));
 
         require(_amount > 0, "Rewards.sol::convertToStable() Amount must be greater than 0");
 

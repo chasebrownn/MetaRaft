@@ -55,4 +55,9 @@ contract Actor {
          string memory sig = "setWhitelistSaleState(bool)";
          (ok,) = address(token).call(abi.encodeWithSignature(sig, _state));
     }    
+
+    function try_convertToStable(address token) external returns (bool ok) {
+         string memory sig = "convertToStable()";
+         (ok,) = address(token).call(abi.encodeWithSignature(sig));
+    }    
 }
