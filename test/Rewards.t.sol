@@ -46,7 +46,7 @@ contract RewardsTest is Test, Utility {
         assertEq(IERC20(USDC).balanceOf(address(mlt)), 0);
 
         // "dev" should be able to call convertToStable().
-        assert(dev.try_convertToStable(address(reward)));
+        assert(nft.try_convertToStable(address(reward)));
 
         //Verify usdc distribution in multi sig wallet
         assert(IERC20(USDC).balanceOf(address(mlt)) > 0);
