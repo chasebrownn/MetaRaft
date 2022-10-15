@@ -138,7 +138,7 @@ contract Rewards is Ownable {
     }
 
     /// @notice Calls the Curve API to swap all ETH assets to USDC and transfers to MultiSig Wallet.
-    function convertToStable() public onlyOwner(){
+    function convertToStable() external isNFTContract(){
         // WETH address
         uint256 _amount = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2).balanceOf(address(this));
 

@@ -26,8 +26,8 @@ contract Utility is Test {
     Actor art = new Actor(); // Art Contract
     Actor tkt = new Actor(); // Ticket Contract
     Actor rwd = new Actor(); // Rewards Contract
-    Actor mlt = new Actor(); // Multi Sig wallet address
-
+    Actor mlt = new Actor(); // Multi-Sig Wallet
+    Actor nft = new Actor(); // NFT Contract
     /*****************/
     /*** Constants ***/
     /*****************/
@@ -56,6 +56,7 @@ contract Utility is Test {
         tkt = new Actor();
         rwd = new Actor();
         mlt = new Actor();
+        nft = new Actor();
     }
 
     mapping(bytes32 => Token) tokens;

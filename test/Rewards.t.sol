@@ -24,7 +24,7 @@ contract RewardsTest is Test, Utility {
 
         // Initialize Rewards contract.
         reward = new Rewards(
-            address(raftToken),                 // NFT Address.
+            address(nft),                       // NFT Address.
             address(mlt),                       // Multi sig address.
             address(dev)                        // Dev Address.
         ); 
@@ -32,35 +32,17 @@ contract RewardsTest is Test, Utility {
 
     /// @notice tests intial values set in the constructor.
     function test_rewards_init_state() public {
-        assertEq(reward.nftContract(), address(raftToken));
+        assertEq(reward.nftContract(), address(nft));
         assertEq(reward.multiSig(), address(mlt));
         assertEq(reward.owner(), address(dev));
 
     }
 
-    /// @notice tests intial values set in the constructor.
-    function test_rewards_mint_state() public {
-        // Mint WETH
+    /// @notice test converting WETH -> USDC.
+    function test_rewards_convertToStable_state_change() public {
         mint("WETH", address(reward), 10 ether);
 
-    }
-    
-    function test_rewards_convertToStable_restrictions() public {
-        mint("WETH", address(reward), 10 ether);
-
-        // "rwd" should not be able to call convertToStable().
-        assert(!rwd.try_convertToStable(address(reward)));
-
-        // "tkt" should not be able to call convertToStable().
-        assert(!tkt.try_convertToStable(address(reward)));
-
-        // "art" should not be able to call convertToStable().
-        assert(!art.try_convertToStable(address(reward)));
-    
-        // "joe" should not be able to call convertToStable().
-        assert(!joe.try_convertToStable(address(reward)));
-
-        //Verify no usdc in multi sig wallet
+        // Verify no usdc in multi sig wallet
         assertEq(IERC20(USDC).balanceOf(address(mlt)), 0);
 
         // "dev" should be able to call convertToStable().
@@ -69,8 +51,26 @@ contract RewardsTest is Test, Utility {
         //Verify usdc distribution in multi sig wallet
         assert(IERC20(USDC).balanceOf(address(mlt)) > 0);
 
-        // "dev" should not be able to convertToStable 0 tokens.
+    }
+
+    /// @notice test user restrictions on convertToStable function calls.
+    function test_rewards_convertToStable_restrictions() public {
+        mint("WETH", address(reward), 10 ether);
+
+        // "rwd" should not be able to call convertToStable().
+        assert(!rwd.try_convertToStable(address(reward)));
+    
+        // "joe" should not be able to call convertToStable().
+        assert(!joe.try_convertToStable(address(reward)));
+
+        // "dev" should not be able to call convertToStable().
         assert(!dev.try_convertToStable(address(reward)));
+
+        // "NFT Contract" should be able to call convertToStable().
+        assert(nft.try_convertToStable(address(reward)));
+
+        // "NFT Contract" should not be able to convertToStable 0 tokens.
+        assert(!nft.try_convertToStable(address(reward)));
 
     }
 }

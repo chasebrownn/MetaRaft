@@ -24,7 +24,7 @@ contract NFTTest is Test, Utility {
 
         // Initialize Rewards contract.
         reward = new Rewards(
-            address(raftToken),                 // NFT Address.
+            address(nft),                       // NFT Address.
             address(mlt),                       // Multi sig address.
             address(dev)                        // Dev Address.
         ); 
