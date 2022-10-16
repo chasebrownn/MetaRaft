@@ -82,7 +82,6 @@ contract Rewards is Ownable {
     // ---------
 
     /// @notice Allows NFT contract to deposit mint USDC.
-    /// @notice Allows user to invest ETH into the REIT.
     /// @dev ETH is not ERC20, needs to be wrapped using the WETH contract.
     function depositETH() external payable isNFTContract() {
 
@@ -118,13 +117,13 @@ contract Rewards is Ownable {
     }
 
     /// @notice Used to determine if an NFT is above tier one. 
-    /// @param _id NFT id that is atempting to be redeemed.
+    /// @param _id NFT id that is attempting to be redeemed.
     function getResults(uint256 _id) public onlyOwner() {
 
     }
 
     /// @notice Used to determine if an NFT has already been redeemed. 
-    /// @param _id NFT id that is atempting to be redeemed.
+    /// @param _id NFT id that is attempting to be redeemed.
     function isRedeemed(uint256 _id) public onlyOwner() {
 
     }
