@@ -131,7 +131,7 @@ contract Rewards is Ownable {
     /// @notice Used to set the python script address.
     /// @param _pythonScript The address the python script is using.
     function setPythonScript(address _pythonScript) public onlyOwner() {
-        require(_pythonScript != pythonScript, "Rewards.sol pythonScript is already set to this address");
+        require(_pythonScript != pythonScript, "Rewards.sol::setPythonScript() pythonScript is already set to this address");
         pythonScript = _pythonScript;
 
     }
