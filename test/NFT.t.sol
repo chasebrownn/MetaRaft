@@ -5,12 +5,13 @@ import "../lib/forge-std/src/Test.sol";
 import "./Utility.sol";
 import "../src/NFT.sol";
 import "../src/Rewards.sol";
-import {IWETH} from "../src/interfaces/InterfacesAggregated.sol";
+import "./utils/Merkle.sol";
 
 contract NFTTest is Test, Utility {
     // State variable for contract.
     NFT raftToken;
     Rewards reward;
+    Merkle merkle;
 
     function setUp() public {
         createActors();
@@ -27,6 +28,9 @@ contract NFTTest is Test, Utility {
             USDC,                               // USDC Address.
             address(raftToken)                  // NFT Address.
         ); 
+
+        // Initialize Merkle contract for constructing Merkle tree roots and proofs.
+        merkle = new Merkle();
     }
 
     /// @notice Test constants as well as values set in the constructor.
@@ -76,47 +80,65 @@ contract NFTTest is Test, Utility {
     //     assertEq(raftToken.balanceOf(address(art)), 1);
     // }
 
-    // /// tests active sale restrictions for minting
-    // function test_nft_mintDapp_WhitelistSaleActive() public{
-    //     // Owner whitelsits Art
-    //     raftToken.modifyWhitelist(address(art), true);
-    //     // Owner activates whitelist sale
-    //     raftToken.setWhitelistSaleState(true);
+    function test_nft_mint_whitelistProof() public {
+        // Generate array of 20 whitelisted addresses and 20 bytes32 encoded addresses to construct merkle tree.
+        (address[] memory whitelist, bytes32[] memory tree) = createWhitelist(20);
+        bytes32 root = merkle.getRoot(tree);
 
-    //     // Pre-state check
-    //     assert(!raftToken.publicSaleActive());
-    //     assert(raftToken.whitelistSaleActive());
+        // Owner assigns whitelist Merkle root
+        raftToken.updateWhitelistRoot(root);
+        // Owner activates whitelist sale
+        raftToken.setWhitelistSaleState(true);
 
-    //     // Joe cannot mint with no active public sale
-    //     // Art can mint with active Whitelist sale
-    //     assert(!joe.try_mint{value: 1 ether}(address(raftToken), 1, 1 ether));
-    //     assert(art.try_mint{value: 1 ether}(address(raftToken), 1, 1 ether));
+        // Pre-state check
+        assert(!raftToken.publicSaleActive());
+        assert(raftToken.whitelistSaleActive());
 
-    //     //Post-state check
-    //     assertEq(raftToken.balanceOf(address(joe)), 0);
-    //     assertEq(raftToken.balanceOf(address(art)), 1);
-    // }
-    
-    // /// tests active sale restrictions for minting
-    // function test_nft_mintDapp_BothSaleActive() public{
-    //     // Owner whitelsits Art
-    //     raftToken.modifyWhitelist(address(art), true);
-    //     // Owner activates whitelist sale
-    //     raftToken.setWhitelistSaleState(true);
-    //     raftToken.setPublicSaleState(true);
+        // Mint every whitelisted user 20 tokens and verify proofs are valid. (20 * 20 = 400 tokens total)
+        for(uint j = 0; j < 20; ++j) {
+            bytes32[] memory validProof = merkle.getProof(tree, j);
+            vm.prank(whitelist[j]);
+            raftToken.mintWhitelist{value: 20 * 1e18}(20, validProof);
+            assertEq(raftToken.balanceOf(whitelist[j]), 20);
+        }
+
+        // Joe cannot mint with no active public sale
+        vm.prank(address(joe));
+        vm.expectRevert(bytes("NFT.sol::mint() Public sale is not currently active"));
+        raftToken.mint{value: 20 * 1e18}(20);
         
-    //     // Pre-state check
-    //     assert(raftToken.publicSaleActive());
-    //     assert(raftToken.whitelistSaleActive());
+        // Joe cannot mint during active whitelist sale with valid proof
+        bytes32[] memory invalidProof = merkle.getProof(tree, 0);
+        vm.prank(address(joe));
+        vm.expectRevert(bytes("NFT.sol::mintWhitelist() Address not whitelisted"));
+        raftToken.mintWhitelist{value: 20 * 1e18}(20, invalidProof);
+        
+        // //Post-state check
+        assertEq(raftToken.balanceOf(address(joe)), 0);
+        assertEq(raftToken.currentTokenId(), 20 * 20);
+    }
+    
+    /// tests active sale restrictions for minting
+    function test_nft_mint_BothSalesActive() public{
+        // Owner whitelsits Art
 
-    //     //Joe and Art can mint NFTs
-    //     assert(joe.try_mint{value: 1 ether}(address(raftToken), 1, 1 ether));
-    //     assert(art.try_mint{value: 1 ether}(address(raftToken), 1, 1 ether));
 
-    //     //Post-state check
-    //     assertEq(raftToken.balanceOf(address(joe)), 1);
-    //     assertEq(raftToken.balanceOf(address(art)), 1);
-    // }
+        // Owner activates whitelist sale
+        raftToken.setWhitelistSaleState(true);
+        raftToken.setPublicSaleState(true);
+        
+        // Pre-state check
+        assert(raftToken.publicSaleActive());
+        assert(raftToken.whitelistSaleActive());
+
+        //Joe and Art can mint NFTs
+        assert(joe.try_mint{value: 1 ether}(address(raftToken), 1, 1 ether));
+        assert(art.try_mint{value: 1 ether}(address(raftToken), 1, 1 ether));
+
+        //Post-state check
+        assertEq(raftToken.balanceOf(address(joe)), 1);
+        assertEq(raftToken.balanceOf(address(art)), 1);
+    }
 
     /// @notice Test that minting yields the proper token quantity and ids.
     /// @dev When using try_mint pass message value with the function call and as a parameter.
@@ -148,7 +170,7 @@ contract NFTTest is Test, Utility {
         // Ensure that the current token id begins at 0.
         assertEq(raftToken.currentTokenId(), 0);
         // Ensure that the current token id after reserving 90 tokens is 90.
-        raftToken.reserveAmount(90);
+        raftToken.reserveTokens(90);
         assertEq(raftToken.currentTokenId(), 90);
 
         // Set public sale state to true so Joe can attempt to mint tokens.
@@ -170,7 +192,7 @@ contract NFTTest is Test, Utility {
         // Mint total supply worth of tokens.
         uint256 price = raftToken.maxRaftPurchase() * raftToken.raftPrice();
         uint256 totalBuys = raftToken.totalSupply() / raftToken.maxRaftPurchase();
-        for(uint i = 0; i < totalBuys ; i++) {
+        for(uint i = 0; i < totalBuys; i++) {
             Actor user = new Actor();
             assert(user.try_mint{value: price}(address(raftToken), 20, price));
         }
@@ -221,7 +243,7 @@ contract NFTTest is Test, Utility {
 
         // Mint all tokens before the random starting token id.
         raftToken.setPublicSaleState(true);
-        raftToken.reserveAmount(startingId);
+        raftToken.reserveTokens(startingId);
 
         // The first token id that Joe will mint, currentTokenId is the most recently minted token id.
         uint256 firstTokenId = raftToken.currentTokenId()+1;
@@ -256,7 +278,7 @@ contract NFTTest is Test, Utility {
         // Set public sale state to true.
         raftToken.setPublicSaleState(true);
         // Mint all tokens up to the starting token id.
-        raftToken.reserveAmount(startingId);
+        raftToken.reserveTokens(startingId);
 
         // The first token id that Joe will mint.
         uint256 firstTokenId = raftToken.currentTokenId()+1;
@@ -293,7 +315,7 @@ contract NFTTest is Test, Utility {
         uint256 mintAmount = 17;
         // for loop is equivalent to startingId = 9000;
         for(uint i = 0; i < 100; i++) {
-            raftToken.reserveAmount(90);
+            raftToken.reserveTokens(90);
         }
 
         // The first token id that Joe will mint.
@@ -335,7 +357,7 @@ contract NFTTest is Test, Utility {
         for(uint256 id = 1; id <= total; id++) {
             // Ensure we don't go beyond the number of owned token ids
             if(index < ownedIds.length) {
-                raftToken.reserveAmount(1);
+                raftToken.reserveTokens(1);
                 
                 // If the current id is equal to the owned id at index, transfer the token to Joe
                 if(id == ownedIds[index]) {
@@ -375,7 +397,7 @@ contract NFTTest is Test, Utility {
         for(uint256 id = 1; id <= total; id++) {
             // Ensure we don't go beyond the number of owned token ids
             if(index < ownedIds.length) {
-                raftToken.reserveAmount(1);
+                raftToken.reserveTokens(1);
 
                 // If the current id is equal to the owned id at index, transfer the token to Joe
                 if(id == ownedIds[index]) {
@@ -415,7 +437,7 @@ contract NFTTest is Test, Utility {
         for(uint256 id = 1; id <= total; id++) {
             // Ensure we don't go beyond the number of owned token ids
             if(index < ownedIds.length) {
-                raftToken.reserveAmount(1);
+                raftToken.reserveTokens(1);
                 
                 // If the current id is equal to the owned id at index, transfer the token to Joe
                 if(id == ownedIds[index]) {
@@ -443,20 +465,7 @@ contract NFTTest is Test, Utility {
         emit log_array(tokenIds);
     }
 
-    // function test_nft_gasAmounts() public {
-    //     raftToken.reserveAmount(200);
-    //     raftToken.setPublicSaleState(true);
 
-    //     vm.startPrank(address(joe));
-    //     raftToken.mint{value: 20 * 1e18}(20);
-    //     uint256[] memory tokenIds = raftToken.ownedTokens();
-    //     uint256[] memory tokenIds2 = raftToken.ownedTokensOriginal();
-
-    //     emit log_array(tokenIds);
-    //     emit log_array(tokenIds2);
-
-    //     assert(true);
-    // }
 
     /// tests updating metadata URI
     function test_nft_setBaseURI() public {

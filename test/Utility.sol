@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.6;
 
-import "../src/users/Actor.sol";
+import "./users/Actor.sol";
 import "../lib/forge-std/src/Vm.sol";
 import "../lib/forge-std/src/Test.sol";
-import {IWETH} from "../src/interfaces/InterfacesAggregated.sol";
+import {IWETH, IERC20} from "../src/interfaces/InterfacesAggregated.sol";
 
 //import "../lib/forge-std/lib/ds-test/src/test.sol";
 
@@ -51,9 +51,22 @@ contract Utility is Test {
     function createActors() public {
         dev = new Actor();
         joe = new Actor();
-        art = new Actor();
-        tkt = new Actor();
-        rwd = new Actor();
+        vm.deal(address(joe), 100 ether);
+        vm.deal(address(dev), 100 ether);
+    }
+
+    function createWhitelist(uint256 _amount) public returns (address[] memory, bytes32[] memory) {
+        address[] memory whitelist = new address[](_amount);
+        bytes32[] memory tree = new bytes32[](_amount);
+
+        for(uint256 i = 0; i < _amount; ++i) {
+            Actor user = new Actor();
+            vm.deal(address(user), 100 ether);
+            whitelist[i] = address(user);
+            tree[i] = keccak256(abi.encodePacked(address(user)));
+        }
+
+        return (whitelist, tree);
     }
 
     mapping(bytes32 => Token) tokens;

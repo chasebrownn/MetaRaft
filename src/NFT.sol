@@ -38,7 +38,7 @@ contract NFT is ERC721, Ownable {
     address public rewardsContract;     /// @notice Stores the contract address of Rewards.sol.
     bool public publicSaleActive;       /// @notice Controls the access for public mint.
     bool public whitelistSaleActive;    /// @notice Controls the access for whitelist mint.
-    mapping(address => uint256) public amountMinted;
+    mapping(address => uint256) public amountMinted;    /// @notice Internal balance tracking to prevent transfers to mint more tokens.
 
 
     // -----------
@@ -55,7 +55,6 @@ contract NFT is ERC721, Ownable {
     // ------
     // Events
     // ------
-    event log_uint256(uint256 value);
 
 
     // ---------
@@ -102,7 +101,7 @@ contract NFT is ERC721, Ownable {
     /// @param _amount The amount of NFTs to be minted.
     /// @dev Only 20 NFTs can be minted per address, and may not mint if minted supply >= 10,000.
     function mintWhitelist(uint256 _amount, bytes32[] calldata _proof) public payable {
-        require(publicSaleActive, "NFT.sol::mint() Public sale is not currently active");
+        require(whitelistSaleActive, "NFT.sol::mint() Public sale is not currently active");
         require(_amount <= maxRaftPurchase, "NFT.sol::mint() Amount requested exceeds maximum purchase (20)");
         require(currentTokenId + _amount <= totalSupply, "NFT.sol::mint() Amount requested exceeds total supply");
         require(amountMinted[msg.sender] + _amount <= maxRaftPurchase, "NFT.sol::mint() Amount requested exceeds maximum tokens per address (20)");
@@ -111,43 +110,43 @@ contract NFT is ERC721, Ownable {
 
         amountMinted[msg.sender] += _amount;
         for(_amount; _amount > 0; --_amount) {
-            _mint(msg.sender, currentTokenId);
-            currentTokenId++;
+            _mint(msg.sender, ++currentTokenId);
         }
     }
 
+    // /// @notice Helper function that returns an array of token ids that the calling address owns.
+    // /// @dev Runtime of O(n) where n is number of tokens minted, if the caller owns token ids up to currentTokenId.
+    // function ownedTokensOriginal() public view returns (uint256[] memory ids) {
+    //     require(currentTokenId >= 1, "NFT.sol::ownedTokens() No tokens have been minted");
+    //     require(balanceOf(msg.sender) > 0, "NFT.sol::ownedTokens() Wallet does not own any tokens");
+
+    //     // Originally used currentTokenId directly in the for loop and if statement, but was worried
+    //     // about the atomicity of the value given state changes. Safest to assign to local variable.
+    //     uint256 currentId = currentTokenId;
+    //     uint256 balance = balanceOf(msg.sender);
+    //     uint256[] memory tokenIds = new uint256[](balance);
+    //     uint256 total = 0;
+
+    //     for(uint256 i = 1; i <= currentId; i++) {
+
+    //         // If balanceOf(msg.sender) = 8 and only 8 tokens have been minted then currentTokenId = 8 
+    //         // and every minted token id belongs to msg.sender.
+    //         // It is impossible for someone to own a token id or have a balance that is greater than 
+    //         // currentTokenId.
+    //         if(address(msg.sender) == ownerOf(i)) {
+    //             tokenIds[total++] = i;
+    //             if(total >= balance) {
+    //                 return tokenIds;
+    //             }
+    //         }
+    //     }
+    //     // Safety net, however the return should trigger within the for loop assuming that the
+    //     // balanceOf(msg.sender) is accurate.
+    //     return tokenIds;
+    // }
+
     /// @notice Helper function that returns an array of token ids that the calling address owns.
-    /// @dev Runtime of O(n) where n is number of tokens minted, if the caller owns token ids up to currentTokenId.
-    function ownedTokensOriginal() public view returns (uint256[] memory ids) {
-        require(currentTokenId >= 1, "NFT.sol::ownedTokens() No tokens have been minted");
-        require(balanceOf(msg.sender) > 0, "NFT.sol::ownedTokens() Wallet does not own any tokens");
-
-        // Originally used currentTokenId directly in the for loop and if statement, but was worried
-        // about the atomicity of the value given state changes. Safest to assign to local variable.
-        uint256 currentId = currentTokenId;
-        uint256 balance = balanceOf(msg.sender);
-        uint256[] memory tokenIds = new uint256[](balance);
-        uint256 total = 0;
-
-        for(uint256 i = 1; i <= currentId; i++) {
-
-            // If balanceOf(msg.sender) = 8 and only 8 tokens have been minted then currentTokenId = 8 
-            // and every minted token id belongs to msg.sender.
-            // It is impossible for someone to own a token id or have a balance that is greater than 
-            // currentTokenId.
-            if(address(msg.sender) == ownerOf(i)) {
-                tokenIds[total++] = i;
-                if(total >= balance) {
-                    return tokenIds;
-                }
-            }
-        }
-        // Safety net, however the return should trigger within the for loop assuming that the
-        // balanceOf(msg.sender) is accurate.
-        return tokenIds;
-    }
-
-    /// @notice Helper function that returns an array of token ids that the calling address owns.
+    /// @dev Compare to calling ownerOf() off-chain versus this function.
     /// @dev Runtime of O(n) where n is number of tokens minted, if the caller owns token ids up to currentTokenId.
     function ownedTokens() public view returns (uint256[] memory ids) {
         require(currentTokenId > 0, "NFT.sol::ownedTokens() No tokens have been minted");
@@ -166,8 +165,8 @@ contract NFT is ERC721, Ownable {
             // currentTokenId.
             if(address(msg.sender) == ownerOf(currentId)) {
                 // More gas efficient to use existing balance variable than create another to assign
-                // token ids to specific indices within the array.
-                // If balanceOf(msg.sender) = 8, then this will cover indices 7, 6, 5, 4, 3, 2, 1, 0
+                // token ids to specific indexes within the array.
+                // If balanceOf(msg.sender) = 8, then this will cover indexes 7, 6, 5, 4, 3, 2, 1, 0
                 // in the tokenIds array and order owned token ids from lowest id to highest id.
                 tokenIds[--balance] = currentId;
                 if(balance == 0) {
@@ -185,15 +184,20 @@ contract NFT is ERC721, Ownable {
     // Owner Functions
     // ---------------
 
-    /// @notice This function will mint out any NFTs that were not minted during the mint phase and burn them.
-    /// TODO:  Decide if we mint directly to the null addy or a holding account.
+    /// @notice This function will mint out any tokens that were not minted during either mint phase and burn them.
+    /// TODO: Decide if we mint directly to the zero address or holding account for sales in secondary market.
     function mintLeftovers() external onlyOwner {
         //currentTokenId == totalSupply
-        // burn all tokenIds from currentTokenId up to totalSupply
+        //burn all tokenIds from currentTokenId up to totalSupply
     }
 
-    function reserveAmount(uint256 _amount) external onlyOwner {
-        for (_amount; _amount > 0; _amount--) {
+    /// @notice Helper function that allows minting an amount of tokens without payment or active sales.
+    /// @dev Only the owner of the contract can reserve tokens.
+    function reserveTokens(uint256 _amount) external onlyOwner {
+        require(_amount > 0, "NFT.sol::reserveTokens() Amount of tokens must be greater than zero");
+        require(currentTokenId + _amount <= totalSupply, "NFT.sol::reserveTokens() Amount requested exceeds total supply");
+
+        for(_amount; _amount > 0; --_amount) {
             _mint(msg.sender, ++currentTokenId);
         }
     }
@@ -201,14 +205,14 @@ contract NFT is ERC721, Ownable {
     /// @notice This function toggles public sale.
     /// @param _state true if public sale is active.
     function setPublicSaleState(bool _state) public onlyOwner {
-        require(publicSaleActive != _state, "NFT.sol::setPubliclistSaleState() _state cannot be same as before");
+        require(publicSaleActive != _state, "NFT.sol::setPubliclistSaleState() State cannot be same as before");
         publicSaleActive = _state;
     }
 
     /// @notice This function toggles whitelist sale.
     /// @param _state true if whitelist sale is active.
     function setWhitelistSaleState(bool _state) public onlyOwner {
-        require(whitelistSaleActive != _state, "NFT.sol::setWhitelistSaleState() _state cannot be same as before");
+        require(whitelistSaleActive != _state, "NFT.sol::setWhitelistSaleState() State cannot be same as before");
         whitelistSaleActive = _state;
     }
 
@@ -220,68 +224,19 @@ contract NFT is ERC721, Ownable {
     }
 
     /// @notice Used to update the base URI for metadata stored on IPFS.
+    /// @param _baseURI The IPFS URI pointing to stored metadata.
     /// @dev URL must be in the format "ipfs://<hash>/“ and the proper extension is used ".json".
-    /// @param   _baseURI    The IPFS URI pointing to stored metadata.
     function setBaseURI(string memory _baseURI) public onlyOwner {
-        require(keccak256(abi.encodePacked(_baseURI)) != keccak256(abi.encodePacked("")), "NFT.sol::setBaseURI() baseURI cannot be empty");
-        require(keccak256(abi.encodePacked(_baseURI)) != keccak256(abi.encodePacked(baseURI)), "NFT.sol::setBaseURI() baseURI address cannot be the same as before");
-
+        require(keccak256(abi.encodePacked(_baseURI)) != keccak256(abi.encodePacked("")), "NFT.sol::setBaseURI() Base URI cannot be empty");
+        require(keccak256(abi.encodePacked(_baseURI)) != keccak256(abi.encodePacked(baseURI)), "NFT.sol::setBaseURI() Base URI address cannot be the same as before");
         baseURI = _baseURI;
     }
-
-
-        // figure out how to only set this value once or twice
-        // 1) Default images with blank metadata (while minting)
-        /*
-        NFT Metadata (While minting):
-        {
-            "name": <name of NFT>
-            "description": <description of collection or round>
-            "image": <Default image URL>
-            "external-url": <link to our minting page or website>
-            "attributes": [
-                { 
-                    "trait_type": "Ticket ID",
-                    "display_type": "number",
-                    "value": <NFT ID from mint>
-                },
-                {
-                    "trait_type": "Ticket Tier",
-                    "value": "???"
-                }
-            ]
-        }
-        */
-        // 2) Revealed images with metadata (after drawing)
-        /*
-        NFT Metadata (After drawing):
-        {
-            "name": <name of NFT>
-            "description": <description of collection or round>
-            "image": <IPFS image URL>
-            "external-url": <link to our minting page or website>
-            "attributes": [
-                { 
-                    "trait_type": "Ticket ID",
-                    "display_type": "number",
-                    "value": <NFT ID from mint>
-                },
-                {
-                    "trait_type": "Ticket Tier",
-                    "value": <string value of tier 1 through tier 6, where tier 6 receives no gift>
-                }
-            ]
-        }
-        */
-    
-
 
     /// @notice This function is used to update the merkleRoot.
     /// @param _whitelistRoot is the root of the whitelist merkle tree.
     function modifyWhitelistRoot(bytes32 _whitelistRoot) public onlyOwner {
         require(_whitelistRoot != bytes32(""), "NFT.sol::modifyWhitelistRoot Merkle root cannot be empty");
         require(_whitelistRoot != whitelistRoot, "NFT.sol::modifyWhitelistRoot Merkle root cannot be the same as before");
-
         whitelistRoot = _whitelistRoot;
     }
 
@@ -291,11 +246,10 @@ contract NFT is ERC721, Ownable {
         require(_rewardsContract != address(0), "NFT.sol::setRewardsAddress() Reward.sol address cannot be address(0)");
         require(_rewardsContract != address(this), "NFT.sol::setRewardsAddress() Reward.sol cannot be the NFT address");
         require(_rewardsContract != rewardsContract, "NFT.sol::setRewardsAddress() Reward.sol address cannot be the same as before");
-
         rewardsContract = _rewardsContract;
     }
 
-    /// @notice This function is used to withdraw all ETH to Rewards.sol.
+    /// @notice Withdraws the ETH balance of this contract into a Circle account.
     function withdraw() external onlyOwner {
 
     }

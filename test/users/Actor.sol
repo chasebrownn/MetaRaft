@@ -2,8 +2,6 @@
 pragma solidity ^0.8.6;
 pragma experimental ABIEncoderV2;
 
-import {IERC20} from "../interfaces/InterfacesAggregated.sol";
-
 contract Actor {
     /************************/
     /*** DIRECT FUNCTIONS ***/
