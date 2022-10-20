@@ -20,7 +20,9 @@ contract NFTTest is Test, Utility {
         // Initialize NFT contract.
         raftToken = new NFT(
             "RaftToken",                        // Name of collection.
-            "RT"                                // Symbol of collection.
+            "RT",                               // Symbol of collection.
+            address(crc),                       // Circle Account.
+            address(sig)                        // Multi-signature wallet.
         );
 
         // Initialize Rewards contract.
@@ -33,8 +35,8 @@ contract NFTTest is Test, Utility {
         merkle = new Merkle();
     }
 
-    /// @notice Test constants as well as values set in the constructor.
-    function test_nft_init_state() public {
+    /// @notice Test constants and values assigned in the constructor once deployed.
+    function test_nft_DeployedState() public {
         assertEq(raftToken.symbol(), "RT");
         assertEq(raftToken.name(), "RaftToken");
 
@@ -47,38 +49,63 @@ contract NFTTest is Test, Utility {
         assertEq(raftToken.publicSaleActive(), false);
     }
 
-    /// @notice Test whitelist and public sale mint restrictions.
-    function test_nft_mintDapp_noSalesActive() public {
-
+    /// @notice Test that minting while whitelist and public sale not active reverts.
+    function test_nft_mint_NoActiveSales() public {
         // Pre-State Check
         assert(!raftToken.publicSaleActive());
         assert(!raftToken.whitelistSaleActive());
 
-        // Joe and Art cannot mint with no active sales
-        assert(!joe.try_mint{value: 1 ether}(address(raftToken), 1, 1 ether));
-        assert(!art.try_mint{value: 1 ether}(address(raftToken), 1, 1 ether));
+        // Joe annot mint with no active sales
+        bytes32[] memory proof;
+        vm.startPrank(address(joe));
+
+        // Joe cannot mint via public mint
+        vm.expectRevert(bytes("NFT.sol::mint() Public sale is not currently active"));
+        raftToken.mint{value: 1 ether}(1);
+
+        // Joe cannot mint via whitelist mint
+        vm.expectRevert(bytes("NFT.sol::mint() Whitelist sale is not currently active"));
+        raftToken.mintWhitelist{value: 1 ether}(1, proof);
     }
 
-    // /// tests public  sale restrictions for minting
-    // function test_nft_mintDapp_PublicSaleActive() public{
-    //     // Owner Whitelsits Art
-    //     raftToken.modifyWhitelist(address(art), true);
+    /// @notice Test that minting while whitelist sale active reverts
+    function test_nft_mint_AddressNotWhitelisted() public {
+        bytes32[] memory invalidProof;
 
-    //     // Owner activates publoc sale
-    //     raftToken.setPublicSaleState(true);
+        // Owner activates whitelist sale
+        raftToken.setWhitelistSaleState(true);
 
-    //     // Pre-State Check
-    //     assert(raftToken.publicSaleActive());
-    //     assert(!raftToken.whitelistSaleActive());
+        // Pre-State Check
+        assert(!raftToken.publicSaleActive());
+        assert(raftToken.whitelistSaleActive());
 
-    //     // Joe and Art can both mint with public sale active
-    //     assert(joe.try_mint{value: 1 ether}(address(raftToken), 1, 1 ether));
-    //     assert(art.try_mint{value: 1 ether}(address(raftToken), 1, 1 ether));
-        
-    //     //Post-state check
-    //     assertEq(raftToken.balanceOf(address(joe)), 1);
-    //     assertEq(raftToken.balanceOf(address(art)), 1);
-    // }
+        // Joe cannot mint via public mint 
+        vm.startPrank(address(joe));
+        vm.expectRevert(bytes("NFT.sol::mint() Public sale is not currently active"));
+        raftToken.mint{value: 1 ether}(1);
+
+        // Joe cannot mint via whitelist mint either
+        vm.expectRevert(bytes("NFT.sol::mintWhitelist() Address not whitelisted"));
+        raftToken.mintWhitelist{value: 1 ether}(1, invalidProof);
+        vm.stopPrank();
+    }
+
+    function test_nft_mint_AddressIsWhitelisted() public {
+        // Owner activates whitelist sale
+        raftToken.setWhitelistSaleState(true);
+
+        (address[] memory whitelist, bytes32[] memory tree) = createWhitelist(2);
+        bytes32 root = merkle.getRoot(tree);
+        bytes32[] memory validProof = merkle.getProof(tree, 0);
+        raftToken.updateWhitelistRoot(root);
+
+        vm.prank(address(whitelist[0]));
+        raftToken.mintWhitelist{value: 1 ether}(1, validProof);
+
+        assertEq(raftToken.currentTokenId(), 1);
+        assertEq(raftToken.balanceOf(address(whitelist[0])), 1);
+        assertEq(raftToken.ownerOf(1), address(whitelist[0]));
+    }
 
     function test_nft_mint_whitelistProof() public {
         // Generate array of 20 whitelisted addresses and 20 bytes32 encoded addresses to construct merkle tree.
@@ -133,11 +160,9 @@ contract NFTTest is Test, Utility {
 
         //Joe and Art can mint NFTs
         assert(joe.try_mint{value: 1 ether}(address(raftToken), 1, 1 ether));
-        assert(art.try_mint{value: 1 ether}(address(raftToken), 1, 1 ether));
 
         //Post-state check
         assertEq(raftToken.balanceOf(address(joe)), 1);
-        assertEq(raftToken.balanceOf(address(art)), 1);
     }
 
     /// @notice Test that minting yields the proper token quantity and ids.
@@ -531,35 +556,5 @@ contract NFTTest is Test, Utility {
     //     assert(dev.try_setPublicSaleState(address(raftToken), true));
     //     assert(dev.try_setWhitelistSaleState(address(raftToken), true));
     // }
-
-    /// tests the isRewards modifier, which determines if the caller is Rewards.sol
-    function test_nft_isRewards() public {
-        //Set rewards contract
-        raftToken.setRewardsAddress(address(rwd));
-        //Verify reward contract has been updated
-        assertEq(address(rwd), raftToken.rewardsContract());
-    }
-
-    /// tests restrictions on updating reward contract address
-    function test_nft_rewards_limitations() public {
-        //Set rewards contract as non-owner
-        assert(!dev.try_setRewardsAddress(address(raftToken), address(rwd)));
-        //Set Owner
-        raftToken.transferOwnership(address(dev));
-        //Set Rewards Contract as owner
-        assert(dev.try_setRewardsAddress(address(raftToken), address(rwd)));
-        
-        //Set Rewards contract to address 0
-        assert(!dev.try_setRewardsAddress(address(raftToken), address(0)));
-
-        //Set Rewards contract to address same address
-        assert(!dev.try_setRewardsAddress(address(raftToken), address(rwd)));
-
-        //Set Rewards contract to NFT contract address 
-        assert(!dev.try_setRewardsAddress(address(raftToken), address(raftToken)));
-
-        // Verify reward contract has been updated
-        assertEq(address(rwd), raftToken.rewardsContract());
-    }
 
 }

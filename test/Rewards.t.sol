@@ -19,7 +19,9 @@ contract RewardsTest is Test, Utility {
         // Initialize NFT contract.
         raftToken = new NFT(
             "RaftToken",                        // Name of collection.
-            "RT"                                // Symbol of collection.
+            "RT",                               // Symbol of collection.
+            address(crc),
+            address(sig)
         );
 
         // Initialize Rewards contract.

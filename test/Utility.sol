@@ -23,9 +23,8 @@ contract Utility is Test {
 
     Actor dev = new Actor(); // Owner/Dev
     Actor joe = new Actor(); // NFT Holder
-    Actor art = new Actor(); // Art Contract
-    Actor tkt = new Actor(); // Ticket Contract
-    Actor rwd = new Actor(); // Rewards Contract
+    Actor sig = new Actor(); // MultiSig Wallet
+    Actor crc = new Actor(); // Circle Account
 
     /*****************/
     /*** Constants ***/
@@ -49,8 +48,6 @@ contract Utility is Test {
     /*** Actor Setup Functions ***/
     /*****************************/
     function createActors() public {
-        dev = new Actor();
-        joe = new Actor();
         vm.deal(address(joe), 100 ether);
         vm.deal(address(dev), 100 ether);
     }

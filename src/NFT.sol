@@ -95,7 +95,7 @@ contract NFT is ERC721, Ownable {
     /// @param _amount The amount of tokens to be minted.
     /// @dev Only 20 tokens can be minted per address. Will revert if current token id plus amount exceeds 10,000.
     function mintWhitelist(uint256 _amount, bytes32[] calldata _proof) public payable {
-        require(whitelistSaleActive, "NFT.sol::mint() Public sale is not currently active");
+        require(whitelistSaleActive, "NFT.sol::mint() Whitelist sale is not currently active");
         require(_amount <= maxRaftPurchase, "NFT.sol::mint() Amount requested exceeds maximum purchase (20)");
         require(currentTokenId + _amount <= totalSupply, "NFT.sol::mint() Amount requested exceeds total supply");
         require(amountMinted[msg.sender] + _amount <= maxRaftPurchase, "NFT.sol::mint() Amount requested exceeds maximum tokens per address (20)");

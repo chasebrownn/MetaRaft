@@ -38,11 +38,6 @@ contract Actor {
          string memory sig = "modifyWhitelistRoot(bytes32)";
          (ok,) = address(token).call(abi.encodeWithSignature(sig, _modifyWhitelistRoot));
     }
-    
-    function try_setRewardsAddress(address token, address _rewardsContract) external returns (bool ok) {
-         string memory sig = "setRewardsAddress(address)";
-         (ok,) = address(token).call(abi.encodeWithSignature(sig, _rewardsContract));
-    }
 
     function try_setPublicSaleState(address token, bool _state) external returns (bool ok) {
          string memory sig = "setPublicSaleState(bool)";
