@@ -28,7 +28,8 @@ contract NFTTest is Test, Utility {
         // Initialize Rewards contract.
         reward = new Rewards(
             USDC,                               // USDC Address.
-            address(raftToken)                  // NFT Address.
+            address(raftToken),                 // NFT Address.
+            address(0x2Ca8E0C643bDe4C2E08ab1fA0da3401AdAD7734D)     // VRF Goerli Testnet Coordinator Address.
         ); 
 
         // Initialize Merkle contract for constructing Merkle tree roots and proofs.

@@ -10,10 +10,10 @@ import {IERC20} from "./interfaces/InterfacesAggregated.sol";
 /// @dev    This ERC721 contract represents a standard NFT contract that holds unique art and rewards data.
 ///         This contract should support the following functionalities:
 ///         - Mintable
-///         - Tradeable
+///         - Transferable
 ///         - 6 unique art pieces 
 ///         - Support whitelist mints
-///         - Withdraw ETH to rewards.sol contract
+///         - Withdraw ETH to Circle account
 ///         - NOTE: Rewards are ***NON-TRANSFFERABLE***
 ///                 After mint the ORIGINAL wallet that minted the NFT MUST be the one to collect rewards from the front end.
 ///                 Only TIER_ONE NFTs are intended to be transffered as they will only be drawn at the end of the year.
@@ -26,7 +26,7 @@ contract NFT is ERC721, Ownable {
     // ---------------
 
     // ERC721 Basic
-    uint256 public currentTokenId;                      /// @notice Last minted token id, the next token id minted is currentTokenId + 1
+    uint256 public currentTokenId;                      /// @notice Last token id minted, the next token id minted is currentTokenId + 1
     uint256 public constant totalSupply = 10_000;
     uint256 public constant raftPrice = 1 ether;   
     uint256 public constant maxRaftPurchase = 20;
@@ -35,19 +35,18 @@ contract NFT is ERC721, Ownable {
     string public baseURI;
 
     // Extras
-    bytes32 private whitelistRoot;                      /// @notice Merkle tree root hash used to verify whitelisted addresses.
-    address payable public circleAccount;               /// @notice Address of Circle account.
-    address payable public multiSig;                    /// @notice Address of multi-signature wallet.
-    bool public publicSaleActive;                       /// @notice Controls the access for public mint.
-    bool public whitelistSaleActive;                    /// @notice Controls the access for whitelist mint.
     mapping(address => uint256) public amountMinted;    /// @notice Internal balance tracking to prevent transfers to mint more tokens.
-    mapping(uint256 => address) public originalOwner;   /// @notice Internal ownership tracking to ensure gifts are non-transferrable.
+    bytes32 private whitelistRoot;                      /// @notice Merkle tree root hash used to verify whitelisted addresses.
+    address payable public circleAccount;               /// @notice Address of Circle account for ETH deposits.
+    address payable public multiSig;                    /// @notice Address of multi-signature wallet for ERC20 deposits.
+    bool public whitelistSaleActive;                    /// @notice Controls the access for whitelist mint.
+    bool public publicSaleActive;                       /// @notice Controls the access for public mint.
 
     // -----------
     // Constructor
     // -----------
 
-    /// @notice Initializes MetaRaft.sol.
+    /// @notice Initializes NFT.sol.
     constructor(string memory _name, string memory _symbol, address _circleAccount, address _multiSig) ERC721(_name, _symbol)
     {
         circleAccount = payable(_circleAccount);
@@ -69,7 +68,7 @@ contract NFT is ERC721, Ownable {
     // Public Functions
     // ----------------
 
-    function tokenURI(uint256 _tokenId) public view virtual override returns (string memory){
+    function tokenURI(uint256 _tokenId) public view virtual override returns (string memory) {
         return
             bytes(baseURI).length > 0
                 ? string(abi.encodePacked(baseURI, _tokenId.toString(), ".json")) : "";
@@ -109,7 +108,7 @@ contract NFT is ERC721, Ownable {
     }
 
     /// @notice Helper function that returns an array of token ids that the calling address owns.
-    /// @dev Compare to calling ownerOf() off-chain versus this function.
+    /// @dev Compare to calling ownerOf() in the same way off-chain to calling this function.
     /// @dev Runtime of O(n) where n is number of tokens minted, if the caller owns token ids up to currentTokenId.
     function ownedTokens() public view returns (uint256[] memory ids) {
         require(currentTokenId > 0, "NFT.sol::ownedTokens() No tokens have been minted");
@@ -147,6 +146,15 @@ contract NFT is ERC721, Ownable {
     // Owner Functions
     // ---------------
 
+    /// @notice Used to update the base URI for metadata stored on IPFS.
+    /// @param _baseURI The IPFS URI pointing to stored metadata.
+    /// @dev URL must be in the format "ipfs://<hash>/“ and the proper extension is used ".json".
+    function setBaseURI(string memory _baseURI) public onlyOwner {
+        require(keccak256(abi.encodePacked(_baseURI)) != keccak256(abi.encodePacked("")), "NFT.sol::setBaseURI() Base URI cannot be empty");
+        require(keccak256(abi.encodePacked(_baseURI)) != keccak256(abi.encodePacked(baseURI)), "NFT.sol::setBaseURI() Base URI address cannot be the same as before");
+        baseURI = _baseURI;
+    }
+
     /// @notice Helper function that allows minting an amount of tokens without payment or active sales.
     /// @dev Only the owner of the contract can reserve tokens.
     function reserveTokens(uint256 _amount) external onlyOwner {
@@ -173,15 +181,6 @@ contract NFT is ERC721, Ownable {
         whitelistSaleActive = _state;
     }
 
-    /// @notice Used to update the base URI for metadata stored on IPFS.
-    /// @param _baseURI The IPFS URI pointing to stored metadata.
-    /// @dev URL must be in the format "ipfs://<hash>/“ and the proper extension is used ".json".
-    function setBaseURI(string memory _baseURI) public onlyOwner {
-        require(keccak256(abi.encodePacked(_baseURI)) != keccak256(abi.encodePacked("")), "NFT.sol::setBaseURI() Base URI cannot be empty");
-        require(keccak256(abi.encodePacked(_baseURI)) != keccak256(abi.encodePacked(baseURI)), "NFT.sol::setBaseURI() Base URI address cannot be the same as before");
-        baseURI = _baseURI;
-    }
-
     /// @notice This function updates the root hash of the Merkle tree to verify whitelisted wallets.
     /// @param _root Root hash of a Merkle tree generated using keccak256.
     function updateWhitelistRoot(bytes32 _root) public onlyOwner {
@@ -206,17 +205,22 @@ contract NFT is ERC721, Ownable {
         multiSig = payable(_multiSig);
     }
 
-    /// @notice Withdraws the ETH balance of this contract into a Circle account.
+    /// @notice Withdraw the entire ETH balance of this contract into a Circle account.
+    /// @dev Call pattern adopted from the sendValue(address payable recipient, uint256 amount)
+    ///      function in OZ's utils/Address.sol contract. Please consider reentrancy potential.
     function withdraw() external onlyOwner {
-        require(address(this).balance > 0, "NFT.sol::withdraw() Insufficient ETH balance");
-        circleAccount.transfer(address(this).balance);
+        uint256 balance = address(this).balance;
+        require(balance > 0, "NFT.sol::withdraw() Insufficient ETH balance");
+
+        (bool success,) = payable(circleAccount).call{value: balance}("");
+        require(success, "NFT.sol::withdraw() Unable to withdraw funds recipient may have reverted");
     }
 
-    /// @notice Withdraw any ERC20 token balance of this contract to the owning address.
+    /// @notice Withdraw any ERC20 token balance of this contract into the owning address.
     /// @param _contract Contract address of an ERC20 compliant token. 
-    function safeWithdraw(address _contract) external onlyOwner {
-        require(_contract != address(0), "NFT.sol::safeWithdraw() Contract address cannot be the zero address");
-        require(IERC20(_contract).balanceOf(address(this)) > 0, "NFT.sol::safeWithdraw() Insufficient token balance");
+    function withdrawERC20(address _contract) external onlyOwner {
+        require(_contract != address(0), "NFT.sol::withdrawERC20() Contract address cannot be the zero address");
+        require(IERC20(_contract).balanceOf(address(this)) > 0, "NFT.sol::withdrawERC20() Insufficient token balance");
         uint256 balance = IERC20(_contract).balanceOf(address(this));
         IERC20(_contract).transfer(multiSig, balance);
     }

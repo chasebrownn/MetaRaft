@@ -27,7 +27,8 @@ contract RewardsTest is Test, Utility {
         // Initialize Rewards contract.
         reward = new Rewards(
             USDC,                               // USDC Address.
-            address(raftToken)                  // NFT Address.
+            address(raftToken),                 // NFT Address.
+            address(0x2Ca8E0C643bDe4C2E08ab1fA0da3401AdAD7734D)     // VRF Goerli Testnet Coordinator Address.
         ); 
     }
 
@@ -35,6 +36,12 @@ contract RewardsTest is Test, Utility {
     function test_rewards_init_state() public {
         assertEq(reward.stableCurrency(), USDC);
         assertEq(reward.nftContract(), address(raftToken));
+        //emit log_array(reward.getFisherArray());
 
+        reward.buildFisherArray(10_000);
+        uint256[] memory array = reward.getFisherArray();
+        assertEq(array.length, 10_000);
+        //emit log_array(array);
     }
+
 }
