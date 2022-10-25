@@ -23,10 +23,22 @@ contract Rewards is Ownable {
     address public pythonScript;            /// @notice Used to store the address of the python script.
     bool public redemptionEnabled;          /// @notice Used to enable/disable redemptions.
 
+    // Rewards
+    /// @notice Used to enable/disable redemptions.
+    uint public redeemWindowOpened;               /// @notice Used to store the block time of the redeem window open.
+    uint public constant redeemPeriod = 1;      /// @notice Used to store the minimum redemption window for NFT rewards.
+    mapping(uint => rewardsData) redeemState;   /// @notice Used to track NFT reward state data.
+
     enum rewardTiers {                       
         TIER_ONE, TIER_TWO, TIER_THREE, TIER_FOUR, TIER_FIVE, TIER_SIX
-    }                                        /// @notice Used to store the rewards tier in an easier to read format.
+    }
 
+    /// @notice Used to store the rewards tier in an easier to read format.
+    struct rewardsData{
+        bool isWinner;
+        bool isRedeemed;
+        rewardTiers tier;
+    }
 
 
     // -----------
@@ -42,6 +54,18 @@ contract Rewards is Ownable {
         transferOwnership(msg.sender);
     }
 
+    // ------
+    // Events
+    // ------
+
+    /// @dev Emitted when the redemption window is opened via openRedeemWindow()
+    event RedemptionOpened(address indexed nftContract, uint redeemWindowOpen, uint minimumRedeemPeriod);
+
+    /// @dev Emitted when the redemption window is opened via closeRedeemWindow()
+    event RedemptionClosed(address indexed nftContract, uint redeemWindowOpen, uint realRedeemPeriod, uint redeemWindowClose);
+    
+    /// @dev Emitted when the gifts are assigned
+    event RewardsSet(address indexed nftContract, string randomNumberSource, uint randomNumberVerificationHash);
 
 
     // ---------
@@ -75,43 +99,50 @@ contract Rewards is Ownable {
 
     /// @notice Allows owner to enable redeeming of rewards by users.
     /// @param _sanity Uint256 to verify sanity.
-    function openRedeemWindow(uint256 _sanity) external onlyOwner() {
+    function openRedeemWindow(uint256 _sanity) external onlyOwner {
         require(_sanity == 42, "Rewards.sol::openRedeemWindow() _sanity must be 42 to confirm");
         require(redemptionEnabled == false, "Rewards.sol::openRedeemWindow() redemption window is already active");
 
         redemptionEnabled = true;
+        redeemWindowOpened = block.timestamp;
+
+        emit  RedemptionOpened(nftContract, redeemWindowOpened, redeemPeriod);
+
     }
 
     /// @notice Allows owner to disable redeeming of rewards by users.
     /// @param _sanity Uint256 to verify sanity.
-    function closeRedeemWindow(uint256 _sanity) external onlyOwner() {
+    function closeRedeemWindow(uint256 _sanity) external onlyOwner {
         require(_sanity == 42, "Rewards.sol::closeRedeemWindow() _sanity must be 42 to confirm");
         require(redemptionEnabled == true, "Rewards.sol::closeRedeemWindow() redemption window is already inactive");
-        
+        require((block.timestamp - redeemWindowOpened) >= redeemPeriod,"Rewards.sol::closeRedeemWindow() redemption window cannot before redemption period is over");
+
         redemptionEnabled = false;
 
+        emit RedemptionClosed(nftContract, redeemWindowOpened, (redeemWindowOpened-block.timestamp), block.timestamp);
+        
     }   
 
     /// @notice Used to recieve the list of winning IDs from the python bot.
-    function setWinners() external isPythonScript() {
+    function setWinners() external isPythonScript {
 
     }
 
     /// @notice Used to retrieve all winning IDs.
-    function getWinners() external onlyOwner() {
+    function getWinners() external {
 
     }
 
     /// @notice Used to determine if an NFT is above tier one. 
     /// @param _id NFT id that is atempting to be redeemed.
-    function getResults(uint256 _id) public onlyOwner() {
-
+    function getResults(uint256 _id) public view onlyOwner returns(bool){
+        return(redeemState[_id].isWinner);
     }
 
     /// @notice Used to determine if an NFT has already been redeemed. 
     /// @param _id NFT id that is atempting to be redeemed.
-    function isRedeemed(uint256 _id) public onlyOwner() {
-
+    function isRedeemed(uint256 _id) public view onlyOwner returns(bool){
+        return(redeemState[_id].isRedeemed);
     }
 
     /// @notice Used to set the python script address.
