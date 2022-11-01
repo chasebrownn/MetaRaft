@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import "./interfaces/VRFCoordinatorV2Interface.sol";
-import {IERC20} from "./interfaces/InterfacesAggregated.sol";
 import "./libraries/Ownable.sol";
 import "./libraries/VRFConsumerBaseV2.sol";
 
@@ -46,13 +45,12 @@ contract Rewards is VRFConsumerBaseV2, Ownable {
     // 22 byte structure
     struct GiftData {
         address recipient;  /// @notice Default value is address(0).
-        Tier tier;          /// @notice Default value is Unset.
+        Tier tier;          /// @notice Default value is Tier.Unset.
         bool claimed;       /// @notice Default value is false.
     }
 
     // 32 bytes
     mapping(uint256 => GiftData) public currentOwner;   /// @notice Internal ownership tracking to ensure gifts are non-transferrable.
-    // ownerOf(id) must match GiftData.recipient in order to redeem rewards
     uint256 public constant totalGiftRecipients = 2511;
     address public stableCurrency;          /// @notice Used to store address of coin used to deposit/payout from Rewards.sol.
     address public nftContract;             /// @notice Used to store the address of the NFT contract.
@@ -94,14 +92,16 @@ contract Rewards is VRFConsumerBaseV2, Ownable {
     // Functions
     // ---------
 
-    function getFisherArray() public view returns (uint256[] memory) {
-        return fisherArray;
+    function setFisherArray() external onlyOwner {
+        unchecked {
+            for(uint i = 10000; i > 0; --i) {
+                fisherArray.push(i);
+            }
+        }
     }
 
-    function buildFisherArray(uint256 _amount) external onlyOwner {
-        for(uint256 i = _amount; i > 0; --i) {
-            fisherArray.push(i);
-        }
+    function getFisherArray() public view returns (uint256[] memory) {
+        return fisherArray;
     }
 
     function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords) internal override {
@@ -112,22 +112,34 @@ contract Rewards is VRFConsumerBaseV2, Ownable {
         entropy = randomWords[0];
     }
 
-    function setEntropy() external onlyOwner returns (uint256 requestId) {
+    function setEntropy() external onlyOwner returns (uint256) {
         require(!entropySet, "Gifts.sol::setEntropy() Entropy has already been fulfilled");
-        return vrfCoordinator.requestRandomWords(keyhash, subscriptionId, requestConfirmations, callbackGasLimit, numWords);
+        
+        entropyId = vrfCoordinator.requestRandomWords(keyhash, subscriptionId, requestConfirmations, callbackGasLimit, numWords);
+        return entropyId;
     }
 
     function shuffle() external onlyOwner {
         // require(time > end)
         require(entropySet, "Gifts.sol::shuffle() Entropy for shuffle has not been fulfilled");
 
-        // // Run Fisher-Yates shuffle for AVAILABLE_SUPPLY
-        // for (uint256 i = 10000; i > 0; --i) {
-            
-        // }
+        // Run Fisher-Yates shuffle for AVAILABLE_SUPPLY
+        uint256 numShuffles = fisherArray.length;
+        for (uint256 i = 0; i < numShuffles; ++i) {
+            // Generate a random index to select from
+            uint256 randomIndex = i + entropy % (numShuffles - i);
+            // Collect the value at that random index
+            uint256 randomTmp = fisherArray[randomIndex];
+            // Update the value at the random index to the current value
+            fisherArray[randomIndex] = fisherArray[i];
+            // Update the current value to the value at the random index
+            fisherArray[i] = randomTmp;
+        }
 
-        // return 
+    }
 
+    function setSubscriptionId(uint64 _subscriptionId) external onlyOwner {
+        subscriptionId = _subscriptionId;
     }
 
     /// @notice Allows owner to enable redeeming of rewards by users.
