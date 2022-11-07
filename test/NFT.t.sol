@@ -8,32 +8,45 @@ import "../src/Rewards.sol";
 import "./utils/Merkle.sol";
 
 contract NFTTest is Test, Utility {
-    // State variable for contract.
+    // State variable for contracts.
     NFT raftToken;
     Rewards reward;
     Merkle merkle;
 
+    // State variables for whitelist.
+    address[] public whitelist;
+    bytes32[] public tree;
+    bytes32 root;
+
     function setUp() public {
         createActors();
         setUpTokens();
+
+        // Initialize Merkle contract for constructing Merkle tree roots and proofs.
+        merkle = new Merkle();
+
+        // Assign array of 20 whitelisted addresses + 20 bytes32 encoded addresses to construct merkle tree.
+        (whitelist, tree) = createWhitelist(20);
+        // Assign root of merkle tree constructed with Murky helper contracts.
+        root = merkle.getRoot(tree);
 
         // Initialize NFT contract.
         raftToken = new NFT(
             "RaftToken",                        // Name of collection.
             "RT",                               // Symbol of collection.
             address(crc),                       // Circle Account.
-            address(sig)                        // Multi-signature wallet.
+            address(sig),                       // Multi-signature wallet.
+            root                                // Whitelist root
         );
 
         // Initialize Rewards contract.
         reward = new Rewards(
             USDC,                               // USDC Address.
             address(raftToken),                 // NFT Address.
-            address(0x2Ca8E0C643bDe4C2E08ab1fA0da3401AdAD7734D)     // VRF Goerli Testnet Coordinator Address.
+            address(0x2Ca8E0C643bDe4C2E08ab1fA0da3401AdAD7734D),     // VRF Goerli Testnet Coordinator Address.
+            (block.timestamp + 86400)           // Mint start timestamp = time of deployment + 1 day
         ); 
 
-        // Initialize Merkle contract for constructing Merkle tree roots and proofs.
-        merkle = new Merkle();
     }
 
     /// @notice Test constants and values assigned in the constructor once deployed.
@@ -56,8 +69,8 @@ contract NFTTest is Test, Utility {
         assert(!raftToken.publicSaleActive());
         assert(!raftToken.whitelistSaleActive());
 
-        // Joe annot mint with no active sales
-        bytes32[] memory proof;
+        // Joe cannot mint with no active sales
+        bytes32[] memory invalidProof;
         vm.startPrank(address(joe));
 
         // Joe cannot mint via public mint
@@ -66,12 +79,11 @@ contract NFTTest is Test, Utility {
 
         // Joe cannot mint via whitelist mint
         vm.expectRevert(bytes("NFT.sol::mint() Whitelist sale is not currently active"));
-        raftToken.mintWhitelist{value: 1 ether}(1, proof);
+        raftToken.mintWhitelist{value: 1 ether}(1, invalidProof);
     }
 
     /// @notice Test that minting while whitelist sale active reverts
     function test_nft_mint_AddressNotWhitelisted() public {
-        bytes32[] memory invalidProof;
 
         // Owner activates whitelist sale
         raftToken.setWhitelistSaleState(true);
@@ -87,6 +99,7 @@ contract NFTTest is Test, Utility {
 
         // Joe cannot mint via whitelist mint either
         vm.expectRevert(bytes("NFT.sol::mintWhitelist() Address not whitelisted"));
+        bytes32[] memory invalidProof;
         raftToken.mintWhitelist{value: 1 ether}(1, invalidProof);
         vm.stopPrank();
     }
@@ -95,10 +108,10 @@ contract NFTTest is Test, Utility {
         // Owner activates whitelist sale
         raftToken.setWhitelistSaleState(true);
 
-        (address[] memory whitelist, bytes32[] memory tree) = createWhitelist(2);
-        bytes32 root = merkle.getRoot(tree);
+        // (address[] memory whitelist, bytes32[] memory tree) = createWhitelist(2);
+        // bytes32 root = merkle.getRoot(tree);
+        // raftToken.updateWhitelistRoot(root);
         bytes32[] memory validProof = merkle.getProof(tree, 0);
-        raftToken.updateWhitelistRoot(root);
 
         vm.prank(address(whitelist[0]));
         raftToken.mintWhitelist{value: 1 ether}(1, validProof);
@@ -108,13 +121,13 @@ contract NFTTest is Test, Utility {
         assertEq(raftToken.ownerOf(1), address(whitelist[0]));
     }
 
-    function test_nft_mint_whitelistProof() public {
-        // Generate array of 20 whitelisted addresses and 20 bytes32 encoded addresses to construct merkle tree.
-        (address[] memory whitelist, bytes32[] memory tree) = createWhitelist(20);
-        bytes32 root = merkle.getRoot(tree);
+    function test_nft_mint_WhitelistProof() public {
+        // // Generate array of 20 whitelisted addresses and 20 bytes32 encoded addresses to construct merkle tree.
+        // (address[] memory whitelist, bytes32[] memory tree) = createWhitelist(20);
+        // bytes32 root = merkle.getRoot(tree);
 
-        // Owner assigns whitelist Merkle root
-        raftToken.updateWhitelistRoot(root);
+        // // Owner assigns whitelist Merkle root
+        // raftToken.updateWhitelistRoot(root);
         // Owner activates whitelist sale
         raftToken.setWhitelistSaleState(true);
 
@@ -148,8 +161,6 @@ contract NFTTest is Test, Utility {
     
     /// tests active sale restrictions for minting
     function test_nft_mint_BothSalesActive() public{
-        // Owner whitelsits Art
-
 
         // Owner activates whitelist sale
         raftToken.setWhitelistSaleState(true);
@@ -159,7 +170,7 @@ contract NFTTest is Test, Utility {
         assert(raftToken.publicSaleActive());
         assert(raftToken.whitelistSaleActive());
 
-        //Joe and Art can mint NFTs
+        //Joe and can mint tokens
         assert(joe.try_mint{value: 1 ether}(address(raftToken), 1, 1 ether));
 
         //Post-state check
@@ -168,7 +179,7 @@ contract NFTTest is Test, Utility {
 
     /// @notice Test that minting yields the proper token quantity and token ids.
     /// @dev When using try_mint pass message value with the function call and as a parameter.
-    function test_nft_mint_public_basic() public {
+    function test_nft_mint_PublicBasic() public {
         // Owner enables public sale
         raftToken.setPublicSaleState(true);
 
@@ -189,7 +200,7 @@ contract NFTTest is Test, Utility {
 
     //address(raftToken).call{value: amount * 1e18}(abi.encodeWithSignature("mint(uint256)", 21));
     /// @notice Test the mint function with uint256 max value as amount to demonstrate revert.
-    function test_nft_mint_amountRestriction() public {
+    function test_nft_mint_AmountRestriction() public {
         // Assign amount of tokens to maximum value of parameter type.
         uint256 amount = type(uint256).max;
 
@@ -211,7 +222,7 @@ contract NFTTest is Test, Utility {
     }
 
     /// @notice Test that an attempt to mint more than the total supply reverts.
-    function test_nft_mint_totalSupply() public {
+    function test_nft_mint_TotalSupply() public {
         // Set public sale state to true.
         raftToken.setPublicSaleState(true);
 
@@ -233,7 +244,7 @@ contract NFTTest is Test, Utility {
     }
 
     /// @notice Test that minting more tokens than the maximum purchase reverts.
-    function test_nft_mint_maxRaftPurchase() public {
+    function test_nft_mint_MaxRaftPurchase() public {
         // Set public sale state to true.
         raftToken.setPublicSaleState(true);
 
@@ -248,7 +259,7 @@ contract NFTTest is Test, Utility {
     }
 
     /// @notice Test that minting with insufficient value reverts.
-    function test_nft_mint_salePrice() public {
+    function test_nft_mint_SalePrice() public {
         // Set public sale state to true
         raftToken.setPublicSaleState(true);
 
@@ -256,11 +267,13 @@ contract NFTTest is Test, Utility {
         assert(!joe.try_mint{value: .9 ether}(address(raftToken), 1, .9 ether));
         assertEq(raftToken.balanceOf(address(joe)), 0);
 
-        // Joe cannot mint multiple tokens for less than the token price * number of tokens
+        // Joe cannot mint multiple tokens with msg.value less than the token price * number of tokens
         assert(!joe.try_mint{value: 1 ether}(address(raftToken), 2, 1 ether));
         assertEq(raftToken.balanceOf(address(joe)), 0);
 
-        assert(joe.try_mint{value: 5 ether}(address(raftToken), 4, 5 ether));
+        // Joe cannot mint less tokens than the msg.value greater than token price * number of tokens
+        assert(!joe.try_mint{value: 5 ether}(address(raftToken), 4, 5 ether));
+        assertEq(raftToken.balanceOf(address(joe)), 0);
     }
 
     /// @notice Test to estimate gas costs for ownedTokens view function for a wallet that owns
@@ -277,7 +290,8 @@ contract NFTTest is Test, Utility {
         uint256 firstTokenId = raftToken.currentTokenId()+1;
 
         // Mint an amount of tokens for Joe.
-        joe.try_mint{value: 20 ether}(address(raftToken), mintAmount, 20 ether);
+        uint256 value = mintAmount * 1e18;
+        joe.try_mint{value: value}(address(raftToken), mintAmount, value);
         assertEq(raftToken.balanceOf(address(joe)), mintAmount);
 
         // the last token id that Joe will mint, Joe mints up to the currentTokenId inclusive.
@@ -300,7 +314,7 @@ contract NFTTest is Test, Utility {
 
     /// @notice Test validity and gas costs of ownedTokens view function for a wallet
     /// that owns sequential token ids at the start of the range of possible token ids.
-    function test_nft_ownedTokens_sequentialLow() public {
+    function test_nft_ownedTokens_SequentialLow() public {
         // Initialize static variables.
         uint256 startingId = 700;
         uint256 mintAmount = 17;
@@ -339,7 +353,7 @@ contract NFTTest is Test, Utility {
 
     /// @notice Test validity and gas costs of ownedTokens view function for a wallet
     /// that owns sequential token ids at the height of the range of possible token ids.
-    function test_nft_ownedTokens_sequentialHigh() public {
+    function test_nft_ownedTokens_SequentialHigh() public {
         // Set public sale state to true.
         raftToken.setPublicSaleState(true);
 
@@ -379,7 +393,7 @@ contract NFTTest is Test, Utility {
 
     /// @notice Test validity and gas costs of ownedTokens view function for a wallet that owns
     /// 0.5% of total supply randomly spread across the range of possible token ids.
-    function test_nft_ownedTokens_sporadicSmall() public {
+    function test_nft_ownedTokens_SporadicSmall() public {
         // Set the public sale state to be true.
         raftToken.setPublicSaleState(true);
 

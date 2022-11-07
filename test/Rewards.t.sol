@@ -12,18 +12,28 @@ contract RewardsTest is Test, Utility {
     NFT raftToken;
     Rewards reward;
     VRFCoordinatorV2Mock vrfCoordinator;
-    uint256[] ids;
+
+    // // State variables for whitelist.
+    // address[] public whitelist;
+    // bytes32[] public tree;
+    bytes32 root;
 
     function setUp() public {
         createActors();
         setUpTokens();
+
+        // // Assign array of 20 whitelisted addresses + 20 bytes32 encoded addresses to construct merkle tree.
+        // (whitelist, tree) = createWhitelist(20);
+        // // Assign root of merkle tree constructed with Murky helper contracts.
+        // root = merkle.getRoot(tree);
 
         // Initialize NFT contract.
         raftToken = new NFT(
             "RaftToken",                        // Name of collection.
             "RT",                               // Symbol of collection.
             address(crc),
-            address(sig)
+            address(sig),
+            bytes32(0x0)                      // Whitelist root
         );
 
         vrfCoordinator = new VRFCoordinatorV2Mock(100000, 100000);
@@ -34,65 +44,64 @@ contract RewardsTest is Test, Utility {
         reward = new Rewards(
             USDC,                               // USDC Address.
             address(raftToken),                 // NFT Address.
-            address(vrfCoordinator)             // Mock VRF Address.
+            address(vrfCoordinator),            // Mock VRF Address.
+            (block.timestamp + 86400)           // Mint start timestamp = time of deployment + 1 day
         ); 
-        reward.setSubscriptionId(subscriptionId);
+        reward.updateSubId(subscriptionId);
         vrfCoordinator.addConsumer(subscriptionId, address(reward));
     }
 
     /// @notice tests intial values set in the constructor.
     function test_rewards_init_state() public {
-        assertEq(reward.stableCurrency(), USDC);
-        assertEq(reward.nftContract(), address(raftToken));
-        //emit log_array(reward.getFisherArray());
-
-        reward.setFisherArray();
-        uint256[] memory array = reward.getFisherArray();
-        assertEq(array.length, 10_000);
-        //emit log_array(array);
+        assertEq(address(reward.stableCurrency()), address(USDC));
+        assertEq(address(reward.nftContract()), address(raftToken));
+        //emit log_array(reward.getTokens());
     }
 
     function test_rewards_RequestRandomness(uint256 word) public {
         uint256[] memory words = new uint256[](1);
         words[0] = word;
 
-        assertEq(reward.entropyId(), 0);
-        assert(!reward.entropySet());
+        assert(!reward.entropyFulfilled());
 
         // request entropy from Chainlink VRF
-        uint256 requestId = reward.setEntropy();
-        assertEq(requestId, reward.entropyId());
-        assert(!reward.entropySet());
+        uint256 requestId = reward.requestEntropy();
+        assert(!reward.entropyFulfilled());
+        assertEq(reward.entropy(), 0);
 
         // Mock VRF response once entropy is received from Chainlink
         vrfCoordinator.fulfillRandomWordsWithOverride(requestId, address(reward), words);
-        assert(reward.entropySet());
+        assert(reward.entropyFulfilled());
         assertEq(reward.entropy(), word);
     }
 
 
-    function test_rewards_SetArray() public {
-       reward.setFisherArray();
+    function test_rewards_InitializeTokens() public {
+       reward.initializeTokens();
+
+        uint256[] memory array = reward.getTokens();
+        assertEq(array.length, 10_000);
+        emit log_array(array);
     }
 
     function test_rewards_ShuffleArray() public {
-        reward.setFisherArray();
+        reward.initializeTokens();
 
         // request entropy from Chainlink VRF
-        uint256 requestId = reward.setEntropy();
-        assertEq(requestId, reward.entropyId());
-        assert(!reward.entropySet());
+        uint256 requestId = reward.requestEntropy();
+        assert(!reward.entropyFulfilled());
 
         // Mock VRF response once entropy is received from Chainlink
         uint256[] memory words = new uint256[](1);
         uint256 entropy = uint256(bytes32(0x01e4928c21c69891d8b1c3520a35b74f6df5f28a867f30b2cd9cd81a01b3aabd));
+
         words[0] = entropy;
         vrfCoordinator.fulfillRandomWordsWithOverride(requestId, address(reward), words);
-        assert(reward.entropySet());
+        assert(reward.entropyFulfilled());
         assertEq(reward.entropy(), entropy);
 
-        reward.shuffle();
-        reward.getFisherArray();
+        reward.shuffleTokens();
+        reward.getTokens();
     }
 
 }

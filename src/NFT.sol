@@ -27,16 +27,16 @@ contract NFT is ERC721, Ownable {
 
     // ERC721 Basic
     uint256 public currentTokenId;                      /// @notice Last token id minted, the next token id minted is currentTokenId + 1
-    uint256 public constant totalSupply = 10_000;
-    uint256 public constant raftPrice = 1 ether;   
-    uint256 public constant maxRaftPurchase = 20;
+    uint256 public constant totalSupply = 10_000;       /// TOTAL_RAFTS
+    uint256 public constant raftPrice = 1 ether;        /// RAFT_PRICE
+    uint256 public constant maxRaftPurchase = 20;       /// MAX_RAFTS
 
     // ERC721 Metadata
     string public baseURI;
 
     // Extras
     mapping(address => uint256) public amountMinted;    /// @notice Internal balance tracking to prevent transfers to mint more tokens.
-    bytes32 private whitelistRoot;                      /// @notice Merkle tree root hash used to verify whitelisted addresses.
+    bytes32 private immutable whitelistRoot;            /// @notice Merkle tree root hash used to verify whitelisted addresses.
     address payable public circleAccount;               /// @notice Address of Circle account for ETH deposits.
     address payable public multiSig;                    /// @notice Address of multi-signature wallet for ERC20 deposits.
     bool public whitelistSaleActive;                    /// @notice Controls the access for whitelist mint.
@@ -47,8 +47,15 @@ contract NFT is ERC721, Ownable {
     // -----------
 
     /// @notice Initializes NFT.sol.
-    constructor(string memory _name, string memory _symbol, address _circleAccount, address _multiSig) ERC721(_name, _symbol)
+    constructor(
+        string memory _name, 
+        string memory _symbol, 
+        address _circleAccount, 
+        address _multiSig, 
+        bytes32 _whitelistRoot
+    ) ERC721(_name, _symbol)
     {
+        whitelistRoot = _whitelistRoot;
         circleAccount = payable(_circleAccount);
         multiSig = payable(_multiSig);
     }
@@ -71,46 +78,13 @@ contract NFT is ERC721, Ownable {
     function tokenURI(uint256 _tokenId) public view virtual override returns (string memory) {
         return
             bytes(baseURI).length > 0
-                ? string(abi.encodePacked(baseURI, _tokenId.toString(), ".json")) : "";
-    }
-
-    /// @notice This function allows tokens to be minted publicly and added to the total supply.
-    /// @param _amount The amount of tokens to be minted.
-    /// @dev Only 20 tokens can be minted per address. Will revert if current token id plus amount exceeds 10,000.
-    function mint(uint256 _amount) public payable {
-        require(publicSaleActive, "NFT.sol::mint() Public sale is not currently active");
-        require(_amount <= maxRaftPurchase, "NFT.sol::mint() Amount requested exceeds maximum purchase (20)");
-        require(currentTokenId + _amount <= totalSupply, "NFT.sol::mint() Amount requested exceeds total supply");
-        require(amountMinted[msg.sender] + _amount <= maxRaftPurchase, "NFT.sol::mint() Amount requested exceeds maximum tokens per address (20)");
-        require(msg.value >= raftPrice * _amount, "NFT.sol::mint() Message value must be at least equal to the price of token(s)");
-
-        amountMinted[msg.sender] += _amount;
-        for(_amount; _amount > 0; --_amount) {
-            _mint(msg.sender, ++currentTokenId);
-        }
-    }
-
-    /// @notice This function allows tokens to be minted via whitelist and added to the total supply.
-    /// @param _amount The amount of tokens to be minted.
-    /// @dev Only 20 tokens can be minted per address. Will revert if current token id plus amount exceeds 10,000.
-    function mintWhitelist(uint256 _amount, bytes32[] calldata _proof) public payable {
-        require(whitelistSaleActive, "NFT.sol::mint() Whitelist sale is not currently active");
-        require(_amount <= maxRaftPurchase, "NFT.sol::mint() Amount requested exceeds maximum purchase (20)");
-        require(currentTokenId + _amount <= totalSupply, "NFT.sol::mint() Amount requested exceeds total supply");
-        require(amountMinted[msg.sender] + _amount <= maxRaftPurchase, "NFT.sol::mint() Amount requested exceeds maximum tokens per address (20)");
-        require(msg.value >= raftPrice * _amount, "NFT.sol::mint() Message value must be at least equal to the price of token(s)");
-        require(MerkleProof.verify(_proof, whitelistRoot, keccak256(abi.encodePacked(msg.sender))), "NFT.sol::mintWhitelist() Address not whitelisted");
-
-        amountMinted[msg.sender] += _amount;
-        for(_amount; _amount > 0; --_amount) {
-            _mint(msg.sender, ++currentTokenId);
-        }
+                ? string(abi.encodePacked(baseURI, _tokenId.toString(), ".json")) : ""; //string(abi.encodePacked(unrevealedURI));
     }
 
     /// @notice Helper function that returns an array of token ids that the calling address owns.
     /// @dev Compare to calling ownerOf() in the same way off-chain to calling this function.
     /// @dev Runtime of O(n) where n is number of tokens minted, if the caller owns token ids up to currentTokenId.
-    function ownedTokens() public view returns (uint256[] memory ids) {
+    function ownedTokens() external view returns (uint256[] memory ids) {
         require(currentTokenId > 0, "NFT.sol::ownedTokens() No tokens have been minted");
         require(balanceOf(msg.sender) > 0, "NFT.sol::ownedTokens() Wallet does not own any tokens");
 
@@ -141,16 +115,48 @@ contract NFT is ERC721, Ownable {
         return tokenIds;
     }
 
+    /// @notice This function allows tokens to be minted publicly and added to the total supply.
+    /// @param _amount The amount of tokens to be minted.
+    /// @dev Only 20 tokens can be minted per address. Will revert if current token id plus amount exceeds 10,000.
+    function mint(uint256 _amount) public payable {
+        require(publicSaleActive, "NFT.sol::mint() Public sale is not currently active");
+        require(_amount <= maxRaftPurchase, "NFT.sol::mint() Amount requested exceeds maximum purchase (20)");
+        require(currentTokenId + _amount <= totalSupply, "NFT.sol::mint() Amount requested exceeds total supply");
+        require(amountMinted[msg.sender] + _amount <= maxRaftPurchase, "NFT.sol::mint() Amount requested exceeds maximum tokens per address (20)");
+        require(msg.value == raftPrice * _amount, "NFT.sol::mint() Message value must be equal to the price of token(s)");
+
+        amountMinted[msg.sender] += _amount;
+        for(_amount; _amount > 0; --_amount) {
+            _mint(msg.sender, ++currentTokenId);
+        }
+    }
+
+    /// @notice This function allows tokens to be minted via whitelist and added to the total supply.
+    /// @param _amount The amount of tokens to be minted.
+    /// @dev Only 20 tokens can be minted per address. Will revert if current token id plus amount exceeds 10,000.
+    function mintWhitelist(uint256 _amount, bytes32[] calldata _proof) public payable {
+        require(whitelistSaleActive, "NFT.sol::mint() Whitelist sale is not currently active");
+        require(_amount <= maxRaftPurchase, "NFT.sol::mint() Amount requested exceeds maximum purchase (20)");
+        require(currentTokenId + _amount <= totalSupply, "NFT.sol::mint() Amount requested exceeds total supply");
+        require(amountMinted[msg.sender] + _amount <= maxRaftPurchase, "NFT.sol::mint() Amount requested exceeds maximum tokens per address (20)");
+        require(msg.value == raftPrice * _amount, "NFT.sol::mint() Message value must be equal to the price of token(s)");
+        require(MerkleProof.verify(_proof, whitelistRoot, keccak256(abi.encodePacked(msg.sender))), "NFT.sol::mintWhitelist() Address not whitelisted");
+
+        amountMinted[msg.sender] += _amount;
+        for(_amount; _amount > 0; --_amount) {
+            _mint(msg.sender, ++currentTokenId);
+        }
+    }
+
 
     // ---------------
     // Owner Functions
     // ---------------
 
     /// @notice Used to update the base URI for metadata stored on IPFS.
-    /// @param _baseURI The IPFS URI pointing to stored metadata.
-    /// @dev URL must be in the format "ipfs://<hash>/“ and the proper extension is used ".json".
-    function setBaseURI(string memory _baseURI) public onlyOwner {
-        require(keccak256(abi.encodePacked(_baseURI)) != keccak256(abi.encodePacked("")), "NFT.sol::setBaseURI() Base URI cannot be empty");
+    /// @param _baseURI The IPFS URI pointing to the folder with JSON metadata for all tokens.
+    /// @dev Must be of the format "ipfs://<CID>/“ where the CID references the folder with JSON metadata for all tokens.
+    function setBaseURI(string memory _baseURI) external onlyOwner {
         require(keccak256(abi.encodePacked(_baseURI)) != keccak256(abi.encodePacked(baseURI)), "NFT.sol::setBaseURI() Base URI address cannot be the same as before");
         baseURI = _baseURI;
     }
@@ -169,39 +175,40 @@ contract NFT is ERC721, Ownable {
 
     /// @notice This function toggles public sale.
     /// @param _state true if public sale is active.
-    function setPublicSaleState(bool _state) public onlyOwner {
+    function setPublicSaleState(bool _state) external onlyOwner {
         require(publicSaleActive != _state, "NFT.sol::setPubliclistSaleState() State cannot be same as before");
         publicSaleActive = _state;
     }
 
     /// @notice This function toggles whitelist sale.
     /// @param _state true if whitelist sale is active.
-    function setWhitelistSaleState(bool _state) public onlyOwner {
+    function setWhitelistSaleState(bool _state) external onlyOwner {
         require(whitelistSaleActive != _state, "NFT.sol::setWhitelistSaleState() State cannot be same as before");
         whitelistSaleActive = _state;
     }
 
-    /// @notice This function updates the root hash of the Merkle tree to verify whitelisted wallets.
-    /// @param _root Root hash of a Merkle tree generated using keccak256.
-    function updateWhitelistRoot(bytes32 _root) public onlyOwner {
-        require(_root != bytes32(""), "NFT.sol::modifyWhitelistRoot() Merkle root cannot be empty");
-        require(_root != whitelistRoot, "NFT.sol::updateWhitelistRoot() Roots cannot be the same");
-        whitelistRoot = _root;
-    }
+    // /// @notice This function updates the root hash of the Merkle tree to verify whitelisted wallets.
+    // /// @param _root Root hash of a Merkle tree generated using keccak256.
+    // function updateWhitelistRoot(bytes32 _root) public onlyOwner {
+    //     require(_root != bytes32(""), "NFT.sol::modifyWhitelistRoot() Merkle root cannot be empty");
+    //     require(_root != whitelistRoot, "NFT.sol::updateWhitelistRoot() Roots cannot be the same");
+    //     whitelistRoot = _root;
+    // }
 
     /// @notice This function updates the address of the Circle account to withdraw ETH to. 
     /// @param _circleAccount Address of the Circle account.
-    function updateCircleAccount(address _circleAccount) public onlyOwner {
+    function updateCircleAccount(address _circleAccount) external onlyOwner {
         require(_circleAccount != address(0), "NFT.sol::updateCircleAccount() Address cannot be the zero address");
-        require(_circleAccount != circleAccount, "NFT.sol::updateCircleAccount() Address cannot be the same");
+        require(_circleAccount != msg.sender, "NFT.sol::updateCircleAccount() Address cannot be owner address");
+        // require(_circleAccount != circleAccount, "NFT.sol::updateCircleAccount() Address cannot be the same");
         circleAccount = payable(_circleAccount);
     }
 
     /// @notice This function updates the address of the multi-signature wallet to safe withdraw ERC20 tokens. 
     /// @param _multiSig Address of the multi-signature wallet.
-    function updateMultiSig(address _multiSig) public onlyOwner {
+    function updateMultiSig(address _multiSig) external onlyOwner {
         require(_multiSig != address(0), "NFT.sol::updateCircleAccount() Address cannot be the zero address");
-        require(_multiSig != multiSig, "NFT.sol::updateCircleAccount() Address cannot be the same");
+        // require(_multiSig != multiSig, "NFT.sol::updateCircleAccount() Address cannot be the same");
         multiSig = payable(_multiSig);
     }
 
