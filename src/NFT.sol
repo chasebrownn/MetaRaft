@@ -7,17 +7,6 @@ import "./libraries/ERC721.sol";
 import "./libraries/MerkleProof.sol";
 import {IERC20} from "./interfaces/InterfacesAggregated.sol";
 
-/// @dev    This ERC721 contract represents a standard NFT contract that holds unique art and rewards data.
-///         This contract should support the following functionalities:
-///         - Mintable
-///         - Transferable
-///         - 6 unique art pieces 
-///         - Support whitelist mints
-///         - Withdraw ETH to Circle account
-///         - NOTE: Rewards are ***NON-TRANSFFERABLE***
-///                 After mint the ORIGINAL wallet that minted the NFT MUST be the one to collect rewards from the front end.
-///                 Only TIER_ONE NFTs are intended to be transffered as they will only be drawn at the end of the year.
-
 contract NFT is ERC721, Ownable {
     using Strings for uint256;
 
@@ -61,28 +50,20 @@ contract NFT is ERC721, Ownable {
     }
 
 
-    // ------
-    // Events
-    // ------
-
-
-    // ---------
-    // Modifiers
-    // ---------
-
 
     // ----------------
     // Public Functions
     // ----------------
 
+    /// @notice Returns the tokens URI reference with format IPFS "ipfs://<CID>/<tokenid>.json“.
+    /// @param _tokenId The tokens id.
     function tokenURI(uint256 _tokenId) public view virtual override returns (string memory) {
         return
             bytes(baseURI).length > 0
-                ? string(abi.encodePacked(baseURI, _tokenId.toString(), ".json")) : ""; //string(abi.encodePacked(unrevealedURI));
+                ? string(abi.encodePacked(baseURI, _tokenId.toString(), ".json")) : "";
     }
 
     /// @notice Helper function that returns an array of token ids that the calling address owns.
-    /// @dev Compare to calling ownerOf() in the same way off-chain to calling this function.
     /// @dev Runtime of O(n) where n is number of tokens minted, if the caller owns token ids up to currentTokenId.
     function ownedTokens() external view returns (uint256[] memory ids) {
         require(currentTokenId > 0, "NFT.sol::ownedTokens() No tokens have been minted");
@@ -135,11 +116,11 @@ contract NFT is ERC721, Ownable {
     /// @param _amount The amount of tokens to be minted.
     /// @dev Only 20 tokens can be minted per address. Will revert if current token id plus amount exceeds 10,000.
     function mintWhitelist(uint256 _amount, bytes32[] calldata _proof) public payable {
-        require(whitelistSaleActive, "NFT.sol::mint() Whitelist sale is not currently active");
-        require(_amount <= maxRaftPurchase, "NFT.sol::mint() Amount requested exceeds maximum purchase (20)");
-        require(currentTokenId + _amount <= totalSupply, "NFT.sol::mint() Amount requested exceeds total supply");
-        require(amountMinted[msg.sender] + _amount <= maxRaftPurchase, "NFT.sol::mint() Amount requested exceeds maximum tokens per address (20)");
-        require(msg.value == raftPrice * _amount, "NFT.sol::mint() Message value must be equal to the price of token(s)");
+        require(whitelistSaleActive, "NFT.sol::mintWhitelist() Whitelist sale is not currently active");
+        require(_amount <= maxRaftPurchase, "NFT.sol::mintWhitelist() Amount requested exceeds maximum purchase (20)");
+        require(currentTokenId + _amount <= totalSupply, "NFT.sol::mintWhitelist() Amount requested exceeds total supply");
+        require(amountMinted[msg.sender] + _amount <= maxRaftPurchase, "NFT.sol::mintWhitelist() Amount requested exceeds maximum tokens per address (20)");
+        require(msg.value == raftPrice * _amount, "NFT.sol::mintWhitelist() Message value must be equal to the price of token(s)");
         require(MerkleProof.verify(_proof, whitelistRoot, keccak256(abi.encodePacked(msg.sender))), "NFT.sol::mintWhitelist() Address not whitelisted");
 
         amountMinted[msg.sender] += _amount;
@@ -161,6 +142,7 @@ contract NFT is ERC721, Ownable {
         baseURI = _baseURI;
     }
 
+    // TODO: Remove
     /// @notice Helper function that allows minting an amount of tokens without payment or active sales.
     /// @dev Only present to make certain test cases easier, will be removed once they are refactored.
     function reserveTokens(uint256 _amount) external onlyOwner {
@@ -175,7 +157,7 @@ contract NFT is ERC721, Ownable {
     /// @notice This function updates public sale.
     /// @param _state true if public sale is active.
     function setPublicSaleState(bool _state) external onlyOwner {
-        require(publicSaleActive != _state, "NFT.sol::setPubliclistSaleState() State cannot be same as before");
+        require(publicSaleActive != _state, "NFT.sol::setPublicSaleState() State cannot be same as before");
         publicSaleActive = _state;
     }
 
@@ -186,34 +168,27 @@ contract NFT is ERC721, Ownable {
         whitelistSaleActive = _state;
     }
 
-    // /// @notice This function updates the root hash of the Merkle tree to verify whitelisted wallets.
-    // /// @param _root Root hash of a Merkle tree generated using keccak256.
-    // function updateWhitelistRoot(bytes32 _root) public onlyOwner {
-    //     require(_root != bytes32(""), "NFT.sol::modifyWhitelistRoot() Merkle root cannot be empty");
-    //     require(_root != whitelistRoot, "NFT.sol::updateWhitelistRoot() Roots cannot be the same");
-    //     whitelistRoot = _root;
-    // }
-
     /// @notice This function updates the address of the Circle account to withdraw ETH to. 
     /// @param _circleAccount Address of the Circle account.
     function updateCircleAccount(address _circleAccount) external onlyOwner {
         require(_circleAccount != address(0), "NFT.sol::updateCircleAccount() Address cannot be the zero address");
         require(_circleAccount != msg.sender, "NFT.sol::updateCircleAccount() Address cannot be owner address");
-        // require(_circleAccount != circleAccount, "NFT.sol::updateCircleAccount() Address cannot be the same");
+        require(_circleAccount != circleAccount, "NFT.sol::updateCircleAccount() Address cannot be the same");
         circleAccount = payable(_circleAccount);
     }
 
     /// @notice This function updates the address of the multi-signature wallet to safe withdraw ERC20 tokens. 
     /// @param _multiSig Address of the multi-signature wallet.
     function updateMultiSig(address _multiSig) external onlyOwner {
-        require(_multiSig != address(0), "NFT.sol::updateCircleAccount() Address cannot be the zero address");
-        // require(_multiSig != multiSig, "NFT.sol::updateCircleAccount() Address cannot be the same");
+        require(_multiSig != address(0), "NFT.sol::updateMultiSig() Address cannot be the zero address");
+        require(_multiSig != circleAccount, "NFT.sol::updateMultiSig() Address cannot be the same as Circle account");
+        require(_multiSig != multiSig, "NFT.sol::updateMultiSig() Address cannot be the same");
         multiSig = payable(_multiSig);
     }
 
     /// @notice Withdraw the entire ETH balance of this contract into a Circle account.
     /// @dev Call pattern adopted from the sendValue(address payable recipient, uint256 amount)
-    ///      function in OZ's utils/Address.sol contract. Please consider reentrancy potential.
+    ///      function in OZ's utils/Address.sol contract. "Please consider reentrancy potential" - OZ.
     function withdraw() external onlyOwner {
         uint256 balance = address(this).balance;
         require(balance > 0, "NFT.sol::withdraw() Insufficient ETH balance");

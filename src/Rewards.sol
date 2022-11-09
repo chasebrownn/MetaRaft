@@ -7,15 +7,6 @@ import "./interfaces/InterfacesAggregated.sol";
 import "./libraries/Ownable.sol";
 import "./libraries/VRFConsumerBaseV2.sol";
 
-/// @dev    This non-standard contract is used to manage and distribute rewards acrewed after mint of NFT.sol.
-///         This contract should support the following functionalities:
-///         - Set winners (Based off of chainlink or python script)
-///         - Get winners list
-///         - Verify NFT authenticity 
-///         - Distribute rewards
-///         - Enable/Disable rewards window
-///         - Get which IDs have redeemed rewards previously
-
 contract Rewards is VRFConsumerBaseV2, Ownable {
 
     // ---------------
@@ -23,45 +14,44 @@ contract Rewards is VRFConsumerBaseV2, Ownable {
     // ---------------
 
     // Chainlink VRF Variables
-    uint256 public entropy;                 /// @notice Entropy provided by Chainlink VRF.
+    uint256 public entropy;                             /// @notice Entropy provided by Chainlink VRF.
+                                                        /// @notice KeyHash required by Chainlink VRF.
     bytes32 public constant keyHash = 0x79d3d8832d904592c0bf9818b621522c988bb8b0c05cdc3b15aea1b6e8db0c15;
 
-    //---- 32 bytes packed ----
+    // 32 bytes packed {
     VRFCoordinatorV2Interface public vrfCoordinator;    /// @notice VRFCoodinatorV2 reference to make Chainlink VRF requests.
     uint64 public subId = 5244;                         /// @notice Chainlink VRF subscription id.
     uint32 public constant callbackGasLimit = 50_000;   /// @notice Callback gas limit for VRF request, ideal for one word of entropy.
     uint32 public constant numWords = 1;                /// @notice Number of random 256 bit words to be requested from VRF.
-    //---- 32 bytes packed ----
+    // }
 
-    //---- 29 bytes packed ----
+    // 28 bytes packed {
     uint16 public requestConfirmations = 20;            /// @notice Number of confirmations before Chainlink VRF fulfills request.
-    bool public entropyFulfilled;                       /// @notice Used to determine if entropy has been received from VFR.
+    bool public entropyFulfilled;                       /// @notice Used to determine if entropy has been received from VRF.
     bool public initialized;                            /// @notice Used to determine if tokens has been initialized with all token ids.
     bool public shuffled;                               /// @notice Used to determine if the tokens array has been shuffled.
 
     enum Tier {         
        Six, Five, Four, Three, Two, One
-    }                                        /// @notice Used to store the rewards tier in an easier to read format.
+    }                                                   /// @notice Used to store the rewards tier in an easier to read format.
 
     struct GiftData {
-        address recipient;  /// @notice Default value is address(0).
-        Tier tier;          /// @notice Default value is Tier.Six.
-        bool claimed;       /// @notice Default value is false.
+    address recipient;                                  /// @notice Default value is address(0).
+        Tier tier;                                      /// @notice Default value is Tier.Six.
+        bool claimed;                                   /// @notice Default value is false.
     }
-
-    bool public claimingEnabled;          /// @notice Used to enable/disable redemptions.
-    //---- 29 bytes packed ----
+    // }
 
 
-    mapping(uint256 => GiftData) public tokenData;   /// @notice Internal ownership tracking to ensure gifts are non-transferrable.
-    uint256 public constant totalGiftRecipients = 2511;
-    uint256 public immutable claimStart;        /// @notice Used to track the start of the claiming period
-    uint256 public claimEnd;                    /// @notice Used to
+    mapping(uint256 => GiftData) public tokenData;      /// @notice Internal ownership tracking to ensure gifts are non-transferrable.
+    uint256 public constant totalGiftRecipients = 2511; /// @notice Total amount of gifts available.
+    uint256 public immutable claimStart;                /// @notice Used to track the start of the claiming period.
+    uint256 public claimEnd;                            /// @notice Used to track the end of the claiming period.
 
     uint256 public constant stableDecimals = 10**6;
-    IERC20 public immutable stableCurrency;     /// @notice Used to store address of coin used to deposit/payout from Rewards.sol.
-    IERC721 public immutable nftContract;       /// @notice Used to store the address of the NFT contract.
-    uint256[] public tokens;                    /// @notice Used to store all token ids before and after they have been shuffled.
+    IERC20 public immutable stableCurrency;             /// @notice Used to store address of coin used to deposit/payout from Rewards.sol.
+    IERC721 public immutable nftContract;               /// @notice Used to store the address of the NFT contract.
+    uint256[] public tokens;                            /// @notice Used to store all token ids before and after they have been shuffled.
 
 
     // -----------
@@ -70,7 +60,7 @@ contract Rewards is VRFConsumerBaseV2, Ownable {
 
     /// @notice Initializes Rewards.sol.
     /// @param _stableCurrency Used to store address of stablecoin used in contract (default is USDC).
-    /// @param _nftContract Used to store the address of the NFT contract ($META).
+    /// @param _nftContract Used to store the address of the NFT contract.
     /// @param _vrfCoordinator Contract address for Chainlink's VRF Coordinator V2.
     /// @param _claimStart Date timestamp indicating when the redemption window opens.
     constructor(
@@ -138,9 +128,9 @@ contract Rewards is VRFConsumerBaseV2, Ownable {
         require(tokenData[_tokenId].tier != Tier.Six, "Gifts.sol::claimGift() No gift associated with Tier 6 tokens");
         require(!tokenData[_tokenId].claimed, "Gifts.sol::claimGift() Gift already claimed for token");
 
-        // cached token tier
+        // Cached token tier
         Tier tokenTier = tokenData[_tokenId].tier;
-        // update before transfer
+        // Update before transfer
         tokenData[_tokenId] = GiftData(
                 msg.sender, // recipient
                 tokenTier,  // tier
@@ -151,23 +141,23 @@ contract Rewards is VRFConsumerBaseV2, Ownable {
         uint256 giftValue = 0;
 
         if(tokenTier == Tier.Two) {
-            // assign gift value for Tier 2
+            // Assign gift value for Tier 2
             giftValue = 10000;
         } else if(tokenTier == Tier.Three) {
-            // assign gift value for Tier 3
+            // Assign gift value for Tier 3
             giftValue = 1000;
         } else if(tokenTier == Tier.Four) {
-            // assign gift value for Tier 4
+            // Assign gift value for Tier 4
             giftValue = 500;
         } else if(tokenTier == Tier.Five) {
-            // assign gift value for Tier 5
+            // Assign gift value for Tier 5
             giftValue = 250;
         }
 
         // Overflow/underflow ulikely assuming decimals and gift values assigned appropriately.
         giftValue *= stableDecimals;
 
-        // send gift value using IERC20 etc.
+        // Send gift value using IERC20 etc.
         require(stableCurrency.balanceOf(address(this)) >= giftValue, "Gifts.sol::claimGift() Insufficient stable currency balance to claim");
         bool success = stableCurrency.transfer(msg.sender, giftValue);
         require(success, "Gifts.sol::claimGift() Transfer failed on stable currency");
@@ -188,7 +178,7 @@ contract Rewards is VRFConsumerBaseV2, Ownable {
     /// @notice Initializes the tokens array with all token ids between 1 and 10000.
     /// @dev Tokens can only be initialized once.
     function initializeTokens() external onlyOwner {
-        require(!initialized, "Gifts.sol::setFisherArray() Tokens array already initialized");
+        require(!initialized, "Gifts.sol::initializeTokens() Tokens array already initialized");
 
         initialized = true;
         unchecked {
@@ -203,7 +193,7 @@ contract Rewards is VRFConsumerBaseV2, Ownable {
     /// @notice Requests one word of entropy from Chainlink VRF to shuffle the tokens array.
     /// @dev Entropy can only be fulfilled once, but requested as many times as necessary.
     function requestEntropy() external onlyOwner returns (uint256) {
-        require(!entropyFulfilled, "Gifts.sol::setEntropy() Entropy has already been fulfilled");
+        require(!entropyFulfilled, "Gifts.sol::requestEntropy() Entropy has already been fulfilled");
         return vrfCoordinator.requestRandomWords(keyHash, subId, requestConfirmations, callbackGasLimit, numWords);
     }
 
