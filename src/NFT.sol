@@ -162,25 +162,24 @@ contract NFT is ERC721, Ownable {
     }
 
     /// @notice Helper function that allows minting an amount of tokens without payment or active sales.
-    /// @dev Only the owner of the contract can reserve tokens.
+    /// @dev Only present to make certain test cases easier, will be removed once they are refactored.
     function reserveTokens(uint256 _amount) external onlyOwner {
         require(_amount > 0, "NFT.sol::reserveTokens() Amount of tokens must be greater than zero");
         require(currentTokenId + _amount <= totalSupply, "NFT.sol::reserveTokens() Amount requested exceeds total supply");
-        // add a maximum amount to reserve, maybe a percentage of total supply..
 
         for(_amount; _amount > 0; --_amount) {
             _mint(msg.sender, ++currentTokenId);
         }
     }
 
-    /// @notice This function toggles public sale.
+    /// @notice This function updates public sale.
     /// @param _state true if public sale is active.
     function setPublicSaleState(bool _state) external onlyOwner {
         require(publicSaleActive != _state, "NFT.sol::setPubliclistSaleState() State cannot be same as before");
         publicSaleActive = _state;
     }
 
-    /// @notice This function toggles whitelist sale.
+    /// @notice This function updates whitelist sale.
     /// @param _state true if whitelist sale is active.
     function setWhitelistSaleState(bool _state) external onlyOwner {
         require(whitelistSaleActive != _state, "NFT.sol::setWhitelistSaleState() State cannot be same as before");

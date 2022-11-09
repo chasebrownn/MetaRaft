@@ -26,42 +26,42 @@ contract Rewards is VRFConsumerBaseV2, Ownable {
     uint256 public entropy;                 /// @notice Entropy provided by Chainlink VRF.
     bytes32 public constant keyHash = 0x79d3d8832d904592c0bf9818b621522c988bb8b0c05cdc3b15aea1b6e8db0c15;
 
-    /// ---- 32 bytes packed ----
-    VRFCoordinatorV2Interface public vrfCoordinator;    // 160 bits aka 20 bytes
-    uint64 public subId = 5244;                         // 64 bits aka 8 bytes
-    uint32 public constant callbackGasLimit = 50_000;   // 32 bits aka 4 bytes
-    uint32 public constant numWords = 1;                // 32 bits aka 4 bytes
-    /// ---- 32 bytes packed ----
+    //---- 32 bytes packed ----
+    VRFCoordinatorV2Interface public vrfCoordinator;    /// @notice VRFCoodinatorV2 reference to make Chainlink VRF requests.
+    uint64 public subId = 5244;                         /// @notice Chainlink VRF subscription id.
+    uint32 public constant callbackGasLimit = 50_000;   /// @notice Callback gas limit for VRF request, ideal for one word of entropy.
+    uint32 public constant numWords = 1;                /// @notice Number of random 256 bit words to be requested from VRF.
+    //---- 32 bytes packed ----
 
-    uint16 public requestConfirmations = 20;            // 16 bits aka 2 bytes 
-    bool public entropyFulfilled;           /// @notice Used to determine if entropy has been received from VFR.
-    bool public initialized;                /// @notice Used to determine if tokens has been initialized with all token ids.
-    bool public shuffled;                   /// @notice Used to determine if the tokens array has been shuffled.
+    //---- 29 bytes packed ----
+    uint16 public requestConfirmations = 20;            /// @notice Number of confirmations before Chainlink VRF fulfills request.
+    bool public entropyFulfilled;                       /// @notice Used to determine if entropy has been received from VFR.
+    bool public initialized;                            /// @notice Used to determine if tokens has been initialized with all token ids.
+    bool public shuffled;                               /// @notice Used to determine if the tokens array has been shuffled.
 
-    // 8 bits aka 1 byte
     enum Tier {         
        Six, Five, Four, Three, Two, One
     }                                        /// @notice Used to store the rewards tier in an easier to read format.
-    // 1 byte
-    bool public claimingEnabled;          /// @notice Used to enable/disable redemptions.
 
-    // 22 byte structure
     struct GiftData {
         address recipient;  /// @notice Default value is address(0).
         Tier tier;          /// @notice Default value is Tier.Six.
         bool claimed;       /// @notice Default value is false.
     }
 
-    // 32 bytes
+    bool public claimingEnabled;          /// @notice Used to enable/disable redemptions.
+    //---- 29 bytes packed ----
+
+
     mapping(uint256 => GiftData) public tokenData;   /// @notice Internal ownership tracking to ensure gifts are non-transferrable.
     uint256 public constant totalGiftRecipients = 2511;
+    uint256 public immutable claimStart;        /// @notice Used to track the start of the claiming period
+    uint256 public claimEnd;                    /// @notice Used to
+
     uint256 public constant stableDecimals = 10**6;
-    uint256 public immutable claimStart;
-    uint256 public claimEnd;
     IERC20 public immutable stableCurrency;     /// @notice Used to store address of coin used to deposit/payout from Rewards.sol.
     IERC721 public immutable nftContract;       /// @notice Used to store the address of the NFT contract.
     uint256[] public tokens;                    /// @notice Used to store all token ids before and after they have been shuffled.
-
 
 
     // -----------
@@ -89,7 +89,6 @@ contract Rewards is VRFConsumerBaseV2, Ownable {
     }
 
 
-
     // ------
     // Events
     // ------
@@ -99,34 +98,32 @@ contract Rewards is VRFConsumerBaseV2, Ownable {
     event GiftClaimed(address recipient, Tier tier, uint256 value);
 
 
-
     // ---------
     // Functions
     // ---------
 
     /// @notice Returns the gift tier for a given token id.
-    /// @param _id Token id.
+    /// @param _tokenId Token id.
     /// @return tier Uint8 value 0, 1, 2, 3, 4, 5 mapped to tiers 6, 5, 4, 3, 2, 1 respectively.
-    function getTier(uint256 _id) external view returns (Tier tier) {
-        return tokenData[_id].tier;
+    function getTier(uint256 _tokenId) external view returns (Tier tier) {
+        return tokenData[_tokenId].tier;
     }
 
     /// @notice Returns boolean representing the claim status for a given token id.
-    /// @param _id Token id.
+    /// @param _tokenId Token id.
     /// @return claimed True indicates the gift was claimed, false indicates the gift is unclaimed.
-    function isClaimed(uint256 _id) external view returns (bool claimed) {
-        return tokenData[_id].claimed;
+    function isClaimed(uint256 _tokenId) external view returns (bool claimed) {
+        return tokenData[_tokenId].claimed;
     }
 
     /// @notice Returns the gift recipient, tier, and claim status for a given token id.
-    /// @param _id Token id.
+    /// @param _tokenId Token id.
     /// @return data GiftData struct containing recipient address, tier enum, and claimed boolean.
-    function getTokenData(uint256 _id) external view returns (GiftData memory data) {
-        return tokenData[_id];
+    function getTokenData(uint256 _tokenId) external view returns (GiftData memory data) {
+        return tokenData[_tokenId];
     }
 
-    // indexes: 0       1       2      ...  9999
-    // values:  1       2       3      ...  10000
+    /// @notice Getter function that returns the entire tokens array.
     function getTokens() external view returns (uint256[] memory) {
         return tokens;
     }
@@ -134,23 +131,24 @@ contract Rewards is VRFConsumerBaseV2, Ownable {
     /// @notice Allows the owner of a given token id to claim its associated gift if unclaimed.
     /// @dev Only tier Two through tier Five gifts can be claimed.
     /// @dev Tier One gifts will be settled between the token owner and NFT team directly.
-    /// @param _id Token id.
-    function claimGift(uint256 _id) external {
+    /// @param _tokenId Token id.
+    function claimGift(uint256 _tokenId) external {
         require(block.timestamp > claimEnd, "Gifts.sol::claimGift() Claiming period already ended");
-        require(nftContract.ownerOf(_id) == msg.sender, "Gifts.sol::claimGift() Address is not the token owner");
-        require(tokenData[_id].tier != Tier.Six, "Gifts.sol::claimGift() No gift associated with Tier 6 tokens");
-        require(!tokenData[_id].claimed, "Gifts.sol::claimGift() Gift already claimed for token");
+        require(nftContract.ownerOf(_tokenId) == msg.sender, "Gifts.sol::claimGift() Address is not the token owner");
+        require(tokenData[_tokenId].tier != Tier.Six, "Gifts.sol::claimGift() No gift associated with Tier 6 tokens");
+        require(!tokenData[_tokenId].claimed, "Gifts.sol::claimGift() Gift already claimed for token");
 
         // cached token tier
-        Tier tokenTier = tokenData[_id].tier;
+        Tier tokenTier = tokenData[_tokenId].tier;
         // update before transfer
-        tokenData[_id] = GiftData(
+        tokenData[_tokenId] = GiftData(
                 msg.sender, // recipient
                 tokenTier,  // tier
                 true        // claimed
         );
 
-        uint256 giftValue; // Initially zero, but will be tier value * USDC decimals; 
+        // Will be updated to tier value * USDC decimals below; 
+        uint256 giftValue = 0;
 
         if(tokenTier == Tier.Two) {
             // assign gift value for Tier 2
@@ -166,12 +164,13 @@ contract Rewards is VRFConsumerBaseV2, Ownable {
             giftValue = 250;
         }
 
-        // send gift value using IERC20 etc.
         // Overflow/underflow ulikely assuming decimals and gift values assigned appropriately.
         giftValue *= stableDecimals;
 
-        require(stableCurrency.balanceOf(address(this)) >= giftValue, "Not enough stable currency available to claim");
-        stableCurrency.transfer(msg.sender, giftValue);
+        // send gift value using IERC20 etc.
+        require(stableCurrency.balanceOf(address(this)) >= giftValue, "Gifts.sol::claimGift() Insufficient stable currency balance to claim");
+        bool success = stableCurrency.transfer(msg.sender, giftValue);
+        require(success, "Gifts.sol::claimGift() Transfer failed on stable currency");
 
         emit GiftClaimed(msg.sender, tokenTier, giftValue);
     }
@@ -225,7 +224,7 @@ contract Rewards is VRFConsumerBaseV2, Ownable {
 
             for (uint256 i = numShuffles; i > 0; --i) {
                 // Generate a random index to select from
-                uint256 randomIndex = entropy % (i + 1);
+                uint256 randomIndex = entropy % (i + 1); // i+1 = 10000, 9999, etc.
                 // Collect the value at that random index
                 uint256 randomTmp = tokens[randomIndex];
                 // Update the value at the random index to the current value
