@@ -15,13 +15,19 @@ contract Actor {
     /*** TRY FUNCTIONS ***/
     /*********************/
 
-    // function try_updateTreasury(address stake, address _newTreasury) external returns (bool ok) {
-    //      string memory sig = "updateTreasury(address)";
-    //      (ok,) = address(stake).call(abi.encodeWithSignature(sig, _newTreasury));
-    // }
-    function try_mint(address token, uint256 _amount, uint256 _value) external payable returns (bool ok) {
+    function try_mint(address token, uint256 _amount) external payable returns (bool ok) {
         string memory sig = "mint(uint256)";
-        (ok, ) = address(token).call{value: _value}(abi.encodeWithSignature(sig, _amount));
+        (ok, ) = address(token).call{value: msg.value}(abi.encodeWithSignature(sig, _amount));
+    }
+
+    function try_mintWhitelist(address token, uint256 _amount, bytes32[] calldata proof) external payable returns (bool ok) {
+          string memory sig = "mintWhitelist(uint256,bytes32[])";
+          (ok,) = address(token).call{value: msg.value}(abi.encodeWithSignature(sig, _amount, proof));
+    }
+
+    function try_transferFrom(address token, address _from, address _to, uint256 _id) external returns (bool ok) {
+          string memory sig = "transferFrom(address,address,uint256)";
+          (ok,) = address(token).call(abi.encodeWithSignature(sig, _from, _to, _id));
     }
 
     function try_tokenURI(address token, uint256 _id) external returns (bool ok) {
@@ -32,11 +38,6 @@ contract Actor {
     function try_setBaseURI(address token, string memory _baseURI) external returns (bool ok) {
          string memory sig = "setBaseURI(string)";
          (ok,) = address(token).call(abi.encodeWithSignature(sig, _baseURI));
-    }
-    
-    function try_modifyWhitelistRoot(address token, bytes32 _modifyWhitelistRoot) external returns (bool ok) {
-         string memory sig = "modifyWhitelistRoot(bytes32)";
-         (ok,) = address(token).call(abi.encodeWithSignature(sig, _modifyWhitelistRoot));
     }
 
     function try_setPublicSaleState(address token, bool _state) external returns (bool ok) {

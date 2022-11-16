@@ -19,7 +19,7 @@ contract Rewards is VRFConsumerBaseV2, Ownable {
     bytes32 public constant keyHash = 0x79d3d8832d904592c0bf9818b621522c988bb8b0c05cdc3b15aea1b6e8db0c15;
 
     // 32 bytes packed {
-    VRFCoordinatorV2Interface public vrfCoordinator;    /// @notice VRFCoodinatorV2 reference to make Chainlink VRF requests.
+    VRFCoordinatorV2Interface public vrfCoordinatorV2;  /// @notice VRFCoodinatorV2 reference to make Chainlink VRF requests.
     uint64 public subId = 5244;                         /// @notice Chainlink VRF subscription id.
     uint32 public constant callbackGasLimit = 50_000;   /// @notice Callback gas limit for VRF request, ideal for one word of entropy.
     uint32 public constant numWords = 1;                /// @notice Number of random 256 bit words to be requested from VRF.
@@ -36,7 +36,7 @@ contract Rewards is VRFConsumerBaseV2, Ownable {
     }                                                   /// @notice Used to store the rewards tier in an easier to read format.
 
     struct GiftData {
-    address recipient;                                  /// @notice Default value is address(0).
+        address recipient;                              /// @notice Default value is address(0).
         Tier tier;                                      /// @notice Default value is Tier.Six.
         bool claimed;                                   /// @notice Default value is false.
     }
@@ -71,7 +71,7 @@ contract Rewards is VRFConsumerBaseV2, Ownable {
     ) VRFConsumerBaseV2(_vrfCoordinator) {
         stableCurrency = IERC20(_stableCurrency);
         nftContract = IERC721(_nftContract);
-        vrfCoordinator = VRFCoordinatorV2Interface(_vrfCoordinator);
+        vrfCoordinatorV2 = VRFCoordinatorV2Interface(_vrfCoordinator);
         claimStart = _claimStart;
         claimEnd = _claimStart + 7 days;
 
@@ -194,7 +194,7 @@ contract Rewards is VRFConsumerBaseV2, Ownable {
     /// @dev Entropy can only be fulfilled once, but requested as many times as necessary.
     function requestEntropy() external onlyOwner returns (uint256) {
         require(!entropyFulfilled, "Gifts.sol::requestEntropy() Entropy has already been fulfilled");
-        return vrfCoordinator.requestRandomWords(keyHash, subId, requestConfirmations, callbackGasLimit, numWords);
+        return vrfCoordinatorV2.requestRandomWords(keyHash, subId, requestConfirmations, callbackGasLimit, numWords);
     }
 
     /// @notice Randomly shuffles an array of token ids (1-10000 inclusive) using entropy obtained from Chainlink VRF.

@@ -4,9 +4,8 @@ pragma solidity ^0.8.6;
 import "./users/Actor.sol";
 import "../lib/forge-std/src/Vm.sol";
 import "../lib/forge-std/src/Test.sol";
-import {IWETH, IERC20} from "../src/interfaces/InterfacesAggregated.sol";
+import {IERC20} from "../src/interfaces/InterfacesAggregated.sol";
 
-//import "../lib/forge-std/lib/ds-test/src/test.sol";
 
 contract Utility is Test {
     /***********************************/
@@ -52,18 +51,38 @@ contract Utility is Test {
         vm.deal(address(dev), 100 ether);
     }
 
-    function createWhitelist(uint256 _amount) public returns (address[] memory, bytes32[] memory) {
-        address[] memory whitelist = new address[](_amount);
+    // function createWhitelist(uint256 _amount) public returns (address[] memory, bytes32[] memory) {
+    function createWhitelist(uint256 _amount) public returns (Actor[] memory, bytes32[] memory) {
+        Actor[] memory whitelist = new Actor[](_amount);
         bytes32[] memory tree = new bytes32[](_amount);
 
         for(uint256 i = 0; i < _amount; ++i) {
             Actor user = new Actor();
             vm.deal(address(user), 100 ether);
-            whitelist[i] = address(user);
+            whitelist[i] = user;
             tree[i] = keccak256(abi.encodePacked(address(user)));
         }
 
         return (whitelist, tree);
+    }
+
+    function reserveTokens(address _contract, uint256 _amount) public {
+        uint256 remainder = _amount % 20;
+        uint256 quotient = _amount / 20;
+
+        // mint max amount of tokens, quotient times.
+        for(uint i = 0; i < quotient; ++i) {
+            Actor minter = new Actor();
+            vm.deal(address(minter), 25 ether);
+            assert(minter.try_mint{value:20 ether}(_contract, 20));
+        }
+
+        // mint amount of tokens remaining.
+        if(remainder > 0) {
+            Actor remaining = new Actor();
+            vm.deal(address(remaining), 25 ether);
+            assert(remaining.try_mint{value: remainder * 10**18}(_contract, remainder));
+        }
     }
 
     mapping(bytes32 => Token) tokens;
@@ -99,10 +118,6 @@ contract Utility is Test {
 
         assertEq(IERC20(addr).balanceOf(account), bal + amt); // Assert new balance
     }
-
-    // function mintETH(uint256 _amount) public {
-    //     IWETH(WETH).deposit{value: _amount}();
-    // }
 
     // Verify equality within accuracy decimals
     function withinPrecision(uint256 val0, uint256 val1, uint256 accuracy) public {
