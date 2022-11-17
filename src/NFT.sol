@@ -119,6 +119,7 @@ contract NFT is ERC721, Ownable {
 
     /// @notice This function allows tokens to be minted via whitelist and added to the total supply.
     /// @param _amount The amount of tokens to be minted.
+    /// @param _proof  Merkle proof.
     /// @dev Only 20 tokens can be minted per address. Will revert if current token id plus amount exceeds 10,000.
     function mintWhitelist(uint256 _amount, bytes32[] calldata _proof) public payable {
         require(whitelistSaleActive, "NFT.sol::mintWhitelist() Whitelist sale is not currently active");

@@ -65,7 +65,7 @@ contract NFTTest is Test, Utility {
         assertEq(raftToken.baseURI(), "");
 
         assertEq(raftToken.publicSaleActive(), false);
-        assertEq(raftToken.publicSaleActive(), false);
+        assertEq(raftToken.whitelistSaleActive(), false);
     }
 
     /// @notice Test that minting while whitelist and public sale not active reverts.
@@ -155,20 +155,20 @@ contract NFTTest is Test, Utility {
         // Mint every whitelisted user 20 tokens and verify proofs are valid. (20 * 20 = 400 tokens total)
         for(uint j = 0; j < 20; ++j) {
             bytes32[] memory validProof = merkle.getProof(tree, j);
-            assert(whitelist[j].try_mintWhitelist{value: 20 * 1e18}(address(raftToken), 20, validProof));
+            assert(whitelist[j].try_mintWhitelist{value: 20 ether}(address(raftToken), 20, validProof));
             assertEq(raftToken.balanceOf(address(whitelist[j])), 20);
         }
 
         // Joe cannot mint with no active public sale
         vm.expectRevert(bytes("NFT.sol::mint() Public sale is not currently active"));
         vm.prank(address(joe));
-        raftToken.mint{value: 20 * 1e18}(20);
+        raftToken.mint{value: 20 ether}(20);
         
         // Joe cannot mint during whitelist sale even with a "valid" proof
         bytes32[] memory validProof = merkle.getProof(tree, 0);
         vm.expectRevert(bytes("NFT.sol::mintWhitelist() Address not whitelisted"));
         vm.prank(address(joe));
-        raftToken.mintWhitelist{value: 20 * 1e18}(20, validProof);
+        raftToken.mintWhitelist{value: 20 ether}(20, validProof);
         
         // Post-state check to verify balances and state changes
         assertEq(raftToken.balanceOf(address(joe)), 0);
@@ -316,7 +316,7 @@ contract NFTTest is Test, Utility {
         uint256 firstTokenId = raftToken.currentTokenId()+1;
 
         // Mint an amount of tokens for Joe.
-        uint256 value = mintAmount * 1e18;
+        uint256 value = mintAmount * WAD;
         assert(joe.try_mint{value: value}(address(raftToken), mintAmount));
         assertEq(raftToken.balanceOf(address(joe)), mintAmount);
 
