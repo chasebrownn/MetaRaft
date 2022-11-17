@@ -31,9 +31,10 @@ contract RewardsTest is Test, Utility {
         raftToken = new NFT(
             "RaftToken",                        // Name of collection.
             "RT",                               // Symbol of collection.
-            address(crc),
-            address(sig),
-            bytes32(0x0)                      // Whitelist root
+            "Unrevealed",                       // Unrevealed URI.
+            address(crc),                       // Circle Account.
+            address(sig),                       // Multi-signature wallet.
+            root                                // Whitelist root.
         );
 
         vrfCoordinator = new VRFCoordinatorV2Mock(100000, 100000);

@@ -51,7 +51,7 @@ contract Utility is Test {
         vm.deal(address(dev), 100 ether);
     }
 
-    // function createWhitelist(uint256 _amount) public returns (address[] memory, bytes32[] memory) {
+    /// @notice ADD NATSPEC!!!
     function createWhitelist(uint256 _amount) public returns (Actor[] memory, bytes32[] memory) {
         Actor[] memory whitelist = new Actor[](_amount);
         bytes32[] memory tree = new bytes32[](_amount);
@@ -66,6 +66,7 @@ contract Utility is Test {
         return (whitelist, tree);
     }
 
+    /// @notice ADD NATSPEC!!!
     function reserveTokens(address _contract, uint256 _amount) public {
         uint256 remainder = _amount % 20;
         uint256 quotient = _amount / 20;

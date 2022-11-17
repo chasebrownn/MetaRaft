@@ -26,11 +26,12 @@ contract NFT is ERC721, Ownable {
 
     // Extras
     mapping(address => uint256) public amountMinted;    /// @notice Internal balance tracking to prevent transfers to mint more tokens.
-    bytes32 private immutable whitelistRoot;            /// @notice Merkle tree root hash used to verify whitelisted addresses.
+    bytes32 public immutable whitelistRoot;             /// @notice Merkle tree root hash used to verify whitelisted addresses.
     address payable public circleAccount;               /// @notice Address of Circle account for ETH deposits.
     address payable public multiSig;                    /// @notice Address of multi-signature wallet for ERC20 deposits.
     bool public whitelistSaleActive;                    /// @notice Controls the access for whitelist mint.
     bool public publicSaleActive;                       /// @notice Controls the access for public mint.
+
 
     // -----------
     // Constructor
@@ -40,17 +41,17 @@ contract NFT is ERC721, Ownable {
     constructor(
         string memory _name, 
         string memory _symbol, 
-        // string memory _unrevealedURI,
+        string memory _unrevealedURI,
         address _circleAccount, 
         address _multiSig, 
         bytes32 _whitelistRoot
     ) ERC721(_name, _symbol)
     {
+        unrevealedURI = _unrevealedURI;
         whitelistRoot = _whitelistRoot;
         circleAccount = payable(_circleAccount);
         multiSig = payable(_multiSig);
     }
-
 
 
     // ----------------
@@ -104,7 +105,7 @@ contract NFT is ERC721, Ownable {
     /// @notice This function allows tokens to be minted publicly and added to the total supply.
     /// @param _amount The amount of tokens to be minted.
     /// @dev Only 20 tokens can be minted per address. Will revert if current token id plus amount exceeds 10,000.
-    function mint(uint256 _amount) public payable {
+    function mint(uint256 _amount) external payable {
         require(publicSaleActive, "NFT.sol::mint() Public sale is not currently active");
         require(_amount <= MAX_RAFTS, "NFT.sol::mint() Amount requested exceeds maximum purchase (20)");
         require(currentTokenId + _amount <= TOTAL_RAFTS, "NFT.sol::mint() Amount requested exceeds total supply");
@@ -119,9 +120,9 @@ contract NFT is ERC721, Ownable {
 
     /// @notice This function allows tokens to be minted via whitelist and added to the total supply.
     /// @param _amount The amount of tokens to be minted.
-    /// @param _proof  Merkle proof.
+    /// @param _proof  Merkle proof for the calling address.
     /// @dev Only 20 tokens can be minted per address. Will revert if current token id plus amount exceeds 10,000.
-    function mintWhitelist(uint256 _amount, bytes32[] calldata _proof) public payable {
+    function mintWhitelist(uint256 _amount, bytes32[] calldata _proof) external payable {
         require(whitelistSaleActive, "NFT.sol::mintWhitelist() Whitelist sale is not currently active");
         require(_amount <= MAX_RAFTS, "NFT.sol::mintWhitelist() Amount requested exceeds maximum purchase (20)");
         require(currentTokenId + _amount <= TOTAL_RAFTS, "NFT.sol::mintWhitelist() Amount requested exceeds total supply");
@@ -140,7 +141,7 @@ contract NFT is ERC721, Ownable {
     // Owner Functions
     // ---------------
 
-    /// @notice Used to update the base URI for metadata stored on IPFS.
+    /// @notice Updates the base URI for metadata stored on IPFS.
     /// @param _baseURI The IPFS URI pointing to the folder with JSON metadata for all tokens.
     /// @dev Must be of the format "ipfs://<CID>/“ where the CID references the folder with JSON metadata for all tokens.
     function setBaseURI(string memory _baseURI) external onlyOwner {
@@ -148,30 +149,31 @@ contract NFT is ERC721, Ownable {
         baseURI = _baseURI;
     }
 
-    /// @notice This function updates public sale.
-    /// @param _state true if public sale is active.
+    /// @notice Updates public sale state.
+    /// @param _state True if public sale is active, false if public sale is not active.
     function setPublicSaleState(bool _state) external onlyOwner {
         require(publicSaleActive != _state, "NFT.sol::setPublicSaleState() State cannot be same as before");
         publicSaleActive = _state;
     }
 
-    /// @notice This function updates whitelist sale.
-    /// @param _state true if whitelist sale is active.
+    /// @notice Updates whitelist sale state.
+    /// @param _state True if whitelist sale is active, false if whitelist sale is not active.
     function setWhitelistSaleState(bool _state) external onlyOwner {
         require(whitelistSaleActive != _state, "NFT.sol::setWhitelistSaleState() State cannot be same as before");
         whitelistSaleActive = _state;
     }
 
-    /// @notice This function updates the address of the Circle account to withdraw ETH to. 
+    /// @notice Updates the address of the Circle account to withdraw ETH to. 
     /// @param _circleAccount Address of the Circle account.
     function updateCircleAccount(address _circleAccount) external onlyOwner {
         require(_circleAccount != address(0), "NFT.sol::updateCircleAccount() Address cannot be zero address");
+        // Irrelevant check, can be circumvented here and in the withdrawal function.
         require(_circleAccount != msg.sender, "NFT.sol::updateCircleAccount() Address cannot be owner address");
         require(_circleAccount != circleAccount, "NFT.sol::updateCircleAccount() Address cannot be the same");
         circleAccount = payable(_circleAccount);
     }
 
-    /// @notice This function updates the address of the multi-signature wallet to safe withdraw ERC20 tokens. 
+    /// @notice Updates the address of the multi-signature wallet to safe withdraw ERC20 tokens. 
     /// @param _multiSig Address of the multi-signature wallet.
     function updateMultiSig(address _multiSig) external onlyOwner {
         require(_multiSig != address(0), "NFT.sol::updateMultiSig() Address cannot be zero address");
@@ -180,7 +182,7 @@ contract NFT is ERC721, Ownable {
         multiSig = payable(_multiSig);
     }
 
-    /// @notice Withdraw the entire ETH balance of this contract into a Circle account.
+    /// @notice Withdraws the entire ETH balance of this contract into the Circle account.
     /// @dev Call pattern adopted from the sendValue(address payable recipient, uint256 amount)
     ///      function in OZ's utils/Address.sol contract. "Please consider reentrancy potential" - OZ.
     function withdraw() external onlyOwner {
@@ -191,7 +193,7 @@ contract NFT is ERC721, Ownable {
         require(success, "NFT.sol::withdraw() Unable to withdraw funds, recipient may have reverted");
     }
 
-    /// @notice Withdraw any ERC20 token balance of this contract into the owning address.
+    /// @notice Withdraws any ERC20 token balance of this contract into the owning address.
     /// @param _contract Contract address of an ERC20 compliant token. 
     function withdrawERC20(address _contract) external onlyOwner {
         require(_contract != address(0), "NFT.sol::withdrawERC20() Contract address cannot be zero address");

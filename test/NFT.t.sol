@@ -34,9 +34,10 @@ contract NFTTest is Test, Utility {
         raftToken = new NFT(
             "RaftToken",                        // Name of collection.
             "RT",                               // Symbol of collection.
+            "ipfs::/Unrevealed/",               // Unrevealed URI.
             address(crc),                       // Circle Account.
             address(sig),                       // Multi-signature wallet.
-            root                                // Whitelist root
+            root                                // Whitelist root.
         );
 
         // Initialize Rewards contract.
@@ -55,8 +56,8 @@ contract NFTTest is Test, Utility {
         assertEq(raftToken.name(), "RaftToken");
         assertEq(raftToken.circleAccount(), address(crc));
         assertEq(raftToken.multiSig(), address(sig));
-        // assertEq(raftToken.whitelistRoot(), root); Does this need to be private?
-        assertEq(raftToken.unrevealedURI(), "");
+        assertEq(raftToken.whitelistRoot(), root);
+        assertEq(raftToken.unrevealedURI(), "ipfs::/Unrevealed/");
 
         assertEq(raftToken.currentTokenId(), 0);
         assertEq(raftToken.TOTAL_RAFTS(), 10000);
@@ -67,6 +68,46 @@ contract NFTTest is Test, Utility {
         assertEq(raftToken.publicSaleActive(), false);
         assertEq(raftToken.whitelistSaleActive(), false);
     }
+
+
+    // ----------------
+    // Public Functions
+    // ----------------
+
+    // --- tokenURI() ---
+
+    /// @notice Test that token URIs returned use the unrevealed URI when the base URI is not set.
+    function test_nft_tokenURI_Unrevealed() public {
+        // Verify base and unrevealed URIs are initialized properly
+        assertEq(raftToken.baseURI(), "");
+        assertEq(raftToken.unrevealedURI(), "ipfs::/Unrevealed/");
+
+        // Ensure that token URIs return the unrevealed URI when base URI is not set
+        assertEq(raftToken.tokenURI(1), "ipfs::/Unrevealed/1.json");
+    }
+
+    /// @notice Test that token URIs returned use the base URI once the base URI is set.
+    function test_nft_tokenURI_Revealed() public {
+        // Owner enables public sale
+        raftToken.setPublicSaleState(true);
+
+        // Joe mints token id 1
+        assert(joe.try_mint{value: 1 ether}(address(raftToken), 1));
+
+        // Joe can get the token URI for token id 1 without reverting
+        assert(joe.try_tokenURI(address(raftToken), 1));
+        // Ensure that the token URI for token id 1 is the unrevealed URI
+        assertEq(raftToken.tokenURI(1), "ipfs::/Unrevealed/1.json");
+
+        // Once token tiers are finalized in Gifts, owner sets the base URI
+        raftToken.setBaseURI("ipfs::/Revealed/");
+
+        // Post-state check
+        assertEq(raftToken.baseURI(), "ipfs::/Revealed/");
+        assertEq(raftToken.tokenURI(1), "ipfs::/Revealed/1.json");
+    }
+
+    // ---- mint() / mintWhitelist() ----
 
     /// @notice Test that minting while whitelist and public sale not active reverts.
     function test_nft_mint_NoActiveSales() public {
@@ -154,8 +195,8 @@ contract NFTTest is Test, Utility {
 
         // Mint every whitelisted user 20 tokens and verify proofs are valid. (20 * 20 = 400 tokens total)
         for(uint j = 0; j < 20; ++j) {
-            bytes32[] memory validProof = merkle.getProof(tree, j);
-            assert(whitelist[j].try_mintWhitelist{value: 20 ether}(address(raftToken), 20, validProof));
+            bytes32[] memory proof = merkle.getProof(tree, j);
+            assert(whitelist[j].try_mintWhitelist{value: 20 ether}(address(raftToken), 20, proof));
             assertEq(raftToken.balanceOf(address(whitelist[j])), 20);
         }
 
@@ -210,7 +251,7 @@ contract NFTTest is Test, Utility {
         assert(joe.try_mint{value: 1 ether}(address(raftToken), 1));
 
         // After mint currentTokenId is incremented to 1 since this is the
-        // most recently minted token id.
+        // most recently minted token id
         assertEq(raftToken.currentTokenId(), 1);
         // Joe owns token with id 1
         assertEq(raftToken.ownerOf(1), address(joe));
@@ -218,17 +259,17 @@ contract NFTTest is Test, Utility {
         assertEq(raftToken.balanceOf(address(joe)), 1);
     }
 
-    /// @notice Test the mint function reverts on amount values greater than maximum overall purchase
+    /// @notice Test the mint function reverts on amount values greater than maximum overall purchase.
     function test_nft_mint_MaxAmount() public {
         // Owner enables public sale.
         raftToken.setPublicSaleState(true);
 
-        // Assign amount of tokens to maximum value of parameter type.
+        // Assign amount of tokens to maximum value of parameter type
         uint256 amount = type(uint256).max;
 
-        // Ensure that the current token id begins at 0.
+        // Ensure that the current token id begins at 0
         assertEq(raftToken.currentTokenId(), 0);
-        // Ensure that the current token id after reserving 90 tokens is 90.
+        // Ensure that the current token id after reserving 90 tokens is 90
         reserveTokens(address(raftToken), 90);
         assertEq(raftToken.currentTokenId(), 90);
         
@@ -299,6 +340,8 @@ contract NFTTest is Test, Utility {
         assert(!joe.try_mint{value: 5 ether}(address(raftToken), 4));
         assertEq(raftToken.balanceOf(address(joe)), 0);
     }
+
+    // --- ownedTokens() ---
 
     /// @notice Test to estimate gas costs for ownedTokens view function for a wallet that owns
     /// random number of sequential token ids at random in the range of possible token ids
@@ -461,7 +504,7 @@ contract NFTTest is Test, Utility {
 
     /// @notice Test validity and gas costs of ownedTokens view function for a wallet that owns
     /// 2% of total supply randomly spread across the range of possible token ids.
-    function test_nft_ownedTokens_sporadicMedium() public {
+    function test_nft_ownedTokens_SporadicMedium() public {
         // Enable public sale.
         raftToken.setPublicSaleState(true);
 
@@ -502,7 +545,7 @@ contract NFTTest is Test, Utility {
 
     /// @notice Test validity and gas costs of ownedTokens view function for a wallet that owns
     /// 5% of total supply randomly spread across the range of possible token ids.
-    function test_nft_ownedTokens_sporadicLarge() public {
+    function test_nft_ownedTokens_SporadicLarge() public {
         // Enable public sale.
         raftToken.setPublicSaleState(true);
 
@@ -542,70 +585,149 @@ contract NFTTest is Test, Utility {
     }
 
 
-    /// @notice Test updating base URI once token tiers have been finalized
-    function test_nft_setBaseURI() public {
+    // ----------------
+    // Owner Functions
+    // ----------------
 
-        //Pre-state check
+    /// @notice Test that the onlyOwner modifier reverts unless the call is from the owner.
+    function test_nft_OnlyOwner() public {
+        // Transfer ownership to the developer actor.
+        raftToken.transferOwnership(address(dev));
+
+        // Joe cannot call functions with onlyOwner modifier
+        assert(!joe.try_setBaseURI(address(raftToken), "ipfs::/RevealedURI/"));
+        assert(!joe.try_setPublicSaleState(address(raftToken), true));
+        assert(!joe.try_setWhitelistSaleState(address(raftToken), true));
+        
+        // Developer can call function with onlyOwner modifier
+        assert(dev.try_setBaseURI(address(raftToken), "ipfs::/RevealedURI/"));
+        assert(dev.try_setPublicSaleState(address(raftToken), true));
+        assert(dev.try_setWhitelistSaleState(address(raftToken), true));
+    }
+
+    // --- setBaseURI() ---
+
+    /// @notice Test that setting the base URI to an identical address reverts.
+    function test_nft_setBaseURI_SameAddress() public {
+        // Pre-state check
         assertEq(raftToken.baseURI(), "");
 
-        //Owner sets new base URI once token tiers have been finalized
-        raftToken.setBaseURI("Arbitrary String");
-
-        //Post-state check
-        assertEq(raftToken.baseURI(), "Arbitrary String");
-    }
-
-    /// @notice Test accuracy of token URI returned for a specific token id
-    function test_nft_tokenURI_Basic() public {
-        // Owner sets the base URI and enables public sale
-        raftToken.setBaseURI("URI/");
-        raftToken.setPublicSaleState(true);
-
-        // Joe mints token id 1
-        assert(joe.try_mint{value: 1 ether}(address(raftToken), 1));
-
-        // Joe can get the token URI for token id 1 without reverting
-        assert(joe.try_tokenURI(address(raftToken), 1));
+        // Owner cannot set the base URI to the same address
+        vm.expectRevert(bytes("NFT.sol::setBaseURI() Base URI address cannot be the same as before"));
+        raftToken.setBaseURI("");
 
         // Post-state check
-        assertEq(raftToken.tokenURI(1), "URI/1.json");
+        assertEq(raftToken.baseURI(), "");
     }
-
-    /// tests calling tokenURI for a specific NFT after updated base URI
-    function test_nft_tokenURI_Update() public {
-        // Set baseURI and enable public sale
-        raftToken.setBaseURI("URI/");
-        raftToken.setPublicSaleState(true);
-
-        // Joe can mint token id 1
-        assert(joe.try_mint{value: 1 ether}(address(raftToken), 1));
-
+    
+    /// @notice Test that the base URI can be set to a new address for revealing.
+    function test_nft_setBaseURI_Set() public {
         // Pre-state check
-        assertEq(raftToken.tokenURI(1), "URI/1.json");
+        assertEq(raftToken.baseURI(), "");
 
-        // Update BaseURI
-        raftToken.setBaseURI("UpdatedURI/");
+        // Owner sets the base URI to a new address
+        raftToken.setBaseURI("ipfs::/RevealedURI/");
 
         // Post-state check
-        assertEq(raftToken.tokenURI(1), "UpdatedURI/1.json");
+        assertEq(raftToken.baseURI(), "ipfs::/RevealedURI/");
     }
 
-    // /// tests the onlyOwner modifier
-    // function test_nft_onlyOwner() public {
-    //     raftToken.transferOwnership(address(dev));
-    //     //Joe cannot call function with onlyOwner modifier
-    //     assert(!joe.try_setBaseURI(address(raftToken), "Arbitrary String"));
-    //     assert(!joe.try_modifyWhitelistRoot(address(raftToken), "Arbitrary String"));
-    //     assert(!joe.try_setRewardsAddress(address(raftToken), address(rwd)));
-    //     assert(!joe.try_setPublicSaleState(address(raftToken), true));
-    //     assert(!joe.try_setWhitelistSaleState(address(raftToken), true));
-        
-    //     //dev can call function with onlyOwner modifier
-    //     assert(dev.try_setBaseURI(address(raftToken), "Arbitrary String"));
-    //     assert(dev.try_modifyWhitelistRoot(address(raftToken), "Arbitrary String"));
-    //     assert(dev.try_setRewardsAddress(address(raftToken), address(rwd)));
-    //     assert(dev.try_setPublicSaleState(address(raftToken), true));
-    //     assert(dev.try_setWhitelistSaleState(address(raftToken), true));
-    // }
+    // --- setPublicSaleState() ---
+
+    /// @notice Test that setting the public sale state to the same value reverts.
+    function test_nft_setPublicSaleState_SameState() public {
+        // Pre-state check
+        assert(!raftToken.publicSaleActive());
+
+        // Owner cannot update the current state if the supplied state is the same.
+        vm.expectRevert(bytes("NFT.sol::setPublicSaleState() State cannot be same as before"));
+        raftToken.setPublicSaleState(false);
+
+        // Post-state check
+        assert(!raftToken.publicSaleActive());
+    }
+
+    /// @notice Test that the public sale state can be set to begin public mint.
+    function test_nft_setPublicSaleState_Set() public {
+        // Pre-state check
+        assert(!raftToken.publicSaleActive());
+
+        // Owner can update the state if the supplied state is different.
+        raftToken.setPublicSaleState(true);
+
+        // Post-state check
+        assert(raftToken.publicSaleActive());
+    }
+
+    // --- setWhitelistSaleState() ---
+
+    function test_nft_setWhitelistSaleState_SameState() public {
+        // Pre-state check
+        assert(!raftToken.publicSaleActive());
+
+        // Owner cannot update the current state if the supplied state is the same.
+        vm.expectRevert(bytes("NFT.sol::setWhitelistSaleState() State cannot be same as before"));
+        raftToken.setWhitelistSaleState(false);
+
+        // Post-state check
+        assert(!raftToken.publicSaleActive());
+    }
+
+    /// @notice Test that the whitelist sale state can be set to begin whitelist mint.
+    function test_nft_setWhitelistSaleState_Set() public {
+        // Pre-state check
+        assert(!raftToken.whitelistSaleActive());
+
+        // Owner can update the state if the supplied state is different.
+        raftToken.setWhitelistSaleState(true);
+
+        // Post-state check
+        assert(raftToken.whitelistSaleActive());
+    }
+
+    // --- updateCircleAccount() ---
+
+    function test_nft_updateCircleAccount_ZeroAddress() public {
+
+    }
+
+    /// @notice Proof of concept of how to circumvent setting the Circle address to owner address.
+    /// @dev Test case must be run with an rpc url.
+    function test_nft_updateCircleAccount_OwnerAddressWorkAround() public {
+        // Put 10 ether in the contract
+        vm.deal(address(raftToken), 10 ether);
+
+        // Record balance of dev and contract before
+        uint256 balanceDevBefore = address(0x1b9169a12579274bD932b672d0c64b741d1C4596).balance;
+        uint256 balanceNFTBefore = address(raftToken).balance;
+
+        emit log_named_uint("DevBefore = ", balanceDevBefore);
+        emit log_named_uint("NFTBefore = ", balanceNFTBefore);
+
+        // Update the circle account to the dev wallet address.
+        raftToken.updateCircleAccount(address(0x1b9169a12579274bD932b672d0c64b741d1C4596));
+        // Transfer ownership to the dev wallet address.
+        raftToken.transferOwnership(address(0x1b9169a12579274bD932b672d0c64b741d1C4596));
+
+        // Dev can withdraw funds into his own wallet.
+        vm.prank(address(0x1b9169a12579274bD932b672d0c64b741d1C4596));
+        raftToken.withdraw();
+
+        uint256 balanceDevAfter = address(0x1b9169a12579274bD932b672d0c64b741d1C4596).balance;
+        uint256 balanceNFTAfter = address(raftToken).balance;
+
+        emit log_named_uint("DevAfter = ", balanceDevAfter);
+        emit log_named_uint("NFTAfter = ", balanceNFTAfter);
+
+        // Verify that the dev wallet successfully received the 10 ether that was in the contract.
+        assertEq(balanceDevBefore + 10 ether, balanceDevAfter);
+        assertEq(balanceNFTBefore - 10 ether, balanceNFTAfter);
+    }
+
+    // --- updateMultiSig() ---
+
+    // --- withdraw() ---
+
+    // --- withdrawERC20() ---
 
 }

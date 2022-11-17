@@ -42,7 +42,6 @@ contract Rewards is VRFConsumerBaseV2, Ownable {
     }
     // }
 
-
     mapping(uint256 => GiftData) public tokenData;      /// @notice Internal ownership tracking to ensure gifts are non-transferrable.
     uint256 public constant totalGiftRecipients = 2511; /// @notice Total amount of gifts available.
     uint256 public immutable claimStart;                /// @notice Used to track the start of the claiming period.
