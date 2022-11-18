@@ -5,7 +5,7 @@ import "./libraries/Ownable.sol";
 import "./libraries/Strings.sol";
 import "./libraries/ERC721.sol";
 import "./libraries/MerkleProof.sol";
-import {IERC20} from "./interfaces/InterfacesAggregated.sol";
+import "./interfaces/IERC20.sol";
 
 contract NFT is ERC721, Ownable {
     using Strings for uint256;
@@ -31,7 +31,6 @@ contract NFT is ERC721, Ownable {
     address payable public multiSig;                    /// @notice Address of multi-signature wallet for ERC20 deposits.
     bool public whitelistSaleActive;                    /// @notice Controls the access for whitelist mint.
     bool public publicSaleActive;                       /// @notice Controls the access for public mint.
-
 
     // -----------
     // Constructor
@@ -127,7 +126,7 @@ contract NFT is ERC721, Ownable {
         require(currentTokenId + _amount <= TOTAL_RAFTS, "NFT.sol::mintWhitelist() Amount requested exceeds total supply");
         require(amountMinted[msg.sender] + _amount <= MAX_RAFTS, "NFT.sol::mintWhitelist() Amount requested exceeds maximum tokens per address (20)");
         require(msg.value == RAFT_PRICE * _amount, "NFT.sol::mintWhitelist() Message value must be equal to the price of token(s)");
-        require(MerkleProof.verify(_proof, whitelistRoot, keccak256(abi.encodePacked(msg.sender))), "NFT.sol::mintWhitelist() Address not whitelisted");
+        require(MerkleProof.verifyCalldata(_proof, whitelistRoot, keccak256(abi.encodePacked(msg.sender))), "NFT.sol::mintWhitelist() Address not whitelisted");
 
         amountMinted[msg.sender] += _amount;
         for(_amount; _amount > 0; --_amount) {
@@ -180,11 +179,11 @@ contract NFT is ERC721, Ownable {
         uint256 balance = address(this).balance;
         require(balance > 0, "NFT.sol::withdraw() Insufficient ETH balance");
 
-        (bool success,) = payable(circleAccount).call{value: balance}("");
+        (bool success,) = circleAccount.call{value: balance}("");
         require(success, "NFT.sol::withdraw() Unable to withdraw funds, recipient may have reverted");
     }
 
-    /// @notice Withdraws any ERC20 token balance of this contract into the owning address.
+    /// @notice Withdraws any ERC20 token balance of this contract into the multisig wallet.
     /// @param _contract Contract address of an ERC20 compliant token. 
     function withdrawERC20(address _contract) external onlyOwner {
         require(_contract != address(0), "NFT.sol::withdrawERC20() Contract address cannot be zero address");

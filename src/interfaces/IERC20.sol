@@ -79,10 +79,3 @@ interface IERC20 {
         uint256 amount
     ) external returns (bool);
 }
-
-interface IWETH {
-    function deposit() external payable;
-    function balanceOf(address account) external view returns (uint256);
-    function transfer(address to, uint256 value) external returns (bool);
-    function withdraw(uint256) external;
-}

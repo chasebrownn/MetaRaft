@@ -65,4 +65,24 @@ contract Actor {
         string memory sig = "withdrawERC20(address)";
         (ok,) = address(token).call(abi.encodeWithSignature(sig, _contract));
     }
+
+    function try_requestEntropy(address token) external returns (bool ok) {
+        string memory sig = "requestEntropy()";
+        (ok,) = address(token).call(abi.encodeWithSignature(sig));
+    }
+
+    function try_initializeTokens(address token) external returns (bool ok) {
+        string memory sig = "initializeTokens()";
+        (ok,) = address(token).call(abi.encodeWithSignature(sig));
+    }
+
+    function try_shuffleTokens(address token) external returns (bool ok) {
+        string memory sig = "shuffleTokens()";
+        (ok,) = address(token).call(abi.encodeWithSignature(sig));
+    }    
+
+    function try_setTokenGiftData(address token) external returns (bool ok) {
+        string memory sig = "setTokenGiftData()";
+        (ok,) = address(token).call(abi.encodeWithSignature(sig));
+    }
 }
