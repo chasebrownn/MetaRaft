@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.13;
 
 import "./libraries/Ownable.sol";
@@ -145,21 +145,18 @@ contract NFT is ERC721, Ownable {
     /// @param _baseURI The IPFS URI pointing to the folder with JSON metadata for all tokens.
     /// @dev Must be of the format "ipfs://<CID>/“ where the CID references the folder with JSON metadata for all tokens.
     function setBaseURI(string memory _baseURI) external onlyOwner {
-        require(keccak256(abi.encodePacked(_baseURI)) != keccak256(abi.encodePacked(baseURI)), "NFT.sol::setBaseURI() Base URI address cannot be the same as before");
         baseURI = _baseURI;
     }
 
     /// @notice Updates public sale state.
     /// @param _state True if public sale is active, false if public sale is not active.
     function setPublicSaleState(bool _state) external onlyOwner {
-        require(publicSaleActive != _state, "NFT.sol::setPublicSaleState() State cannot be same as before");
         publicSaleActive = _state;
     }
 
     /// @notice Updates whitelist sale state.
     /// @param _state True if whitelist sale is active, false if whitelist sale is not active.
     function setWhitelistSaleState(bool _state) external onlyOwner {
-        require(whitelistSaleActive != _state, "NFT.sol::setWhitelistSaleState() State cannot be same as before");
         whitelistSaleActive = _state;
     }
 
@@ -167,9 +164,6 @@ contract NFT is ERC721, Ownable {
     /// @param _circleAccount Address of the Circle account.
     function updateCircleAccount(address _circleAccount) external onlyOwner {
         require(_circleAccount != address(0), "NFT.sol::updateCircleAccount() Address cannot be zero address");
-        // Irrelevant check, can be circumvented here and in the withdrawal function.
-        require(_circleAccount != msg.sender, "NFT.sol::updateCircleAccount() Address cannot be owner address");
-        require(_circleAccount != circleAccount, "NFT.sol::updateCircleAccount() Address cannot be the same");
         circleAccount = payable(_circleAccount);
     }
 
@@ -177,8 +171,6 @@ contract NFT is ERC721, Ownable {
     /// @param _multiSig Address of the multi-signature wallet.
     function updateMultiSig(address _multiSig) external onlyOwner {
         require(_multiSig != address(0), "NFT.sol::updateMultiSig() Address cannot be zero address");
-        require(_multiSig != circleAccount, "NFT.sol::updateMultiSig() Address cannot be the same as Circle account");
-        require(_multiSig != multiSig, "NFT.sol::updateMultiSig() Address cannot be the same");
         multiSig = payable(_multiSig);
     }
 
@@ -204,5 +196,4 @@ contract NFT is ERC721, Ownable {
         bool success = IERC20(_contract).transfer(multiSig, balance);
         require(success, "NFT.sol::withdrawERC20() Transfer failed on ERC20 contract");
     }
-
 }
