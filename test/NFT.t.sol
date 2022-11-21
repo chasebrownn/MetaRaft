@@ -562,24 +562,39 @@ contract NFTTest is Test, Utility {
     }
 
 
-    // ----------------
+    // ---------------
     // Owner Functions
-    // ----------------
+    // ---------------
 
     /// @notice Test that the onlyOwner modifier reverts unless the call is from the owner.
+    /// @dev Must be run with an appropriate rpc url!
     function test_nft_OnlyOwner() public {
         // Transfer ownership to the developer actor
         raftToken.transferOwnership(address(dev));
+
+        // Setup new addresses and balances
+        address newCrc = makeAddr("New Circle Account");
+        address newSig = makeAddr("New MultiSig Wallet");
+        vm.deal(address(raftToken), 100 ether);
+        deal(USDC, address(raftToken), 100 * USD);
 
         // Joe cannot call functions with onlyOwner modifier
         assert(!joe.try_setBaseURI(address(raftToken), "ipfs::/RevealedURI/"));
         assert(!joe.try_setPublicSaleState(address(raftToken), true));
         assert(!joe.try_setWhitelistSaleState(address(raftToken), true));
-        
+        assert(!joe.try_updateCircleAccount(address(raftToken), newCrc));
+        assert(!joe.try_updateMultiSig(address(raftToken), newSig));
+        assert(!joe.try_withdraw(address(raftToken)));
+        assert(!joe.try_withdrawERC20(address(raftToken), USDC));
+
         // Developer can call function with onlyOwner modifier
         assert(dev.try_setBaseURI(address(raftToken), "ipfs::/RevealedURI/"));
         assert(dev.try_setPublicSaleState(address(raftToken), true));
         assert(dev.try_setWhitelistSaleState(address(raftToken), true));
+        assert(dev.try_updateCircleAccount(address(raftToken), newCrc));
+        assert(dev.try_updateMultiSig(address(raftToken), newSig));
+        assert(dev.try_withdraw(address(raftToken)));
+        assert(dev.try_withdrawERC20(address(raftToken), USDC));
     }
 
     // --- setBaseURI() ---
@@ -660,7 +675,7 @@ contract NFTTest is Test, Utility {
         assertEq(raftToken.multiSig(), sig);
         
         // Owner can update multisig to a new address
-        address newSig = makeAddr("New MultiSig");
+        address newSig = makeAddr("New MultiSig Wallet");
         raftToken.updateMultiSig(newSig);
 
         // Verify multisig wallet reflects changes
@@ -774,5 +789,4 @@ contract NFTTest is Test, Utility {
         assertEq(token.balanceOf(sig), 0);
         assertEq(token.balanceOf(address(raftToken)), 0);
     }
-
 }
