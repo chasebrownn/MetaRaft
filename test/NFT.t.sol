@@ -561,6 +561,29 @@ contract NFTTest is Test, Utility {
         // emit log_array(tokenIds);
     }
 
+    /// @notice Test that calls from addresses with a zero balance revert.
+    function test_nft_ownedTokens_InsufficientBalance() public {
+        raftToken.setPublicSaleState(true);
+
+        // Joe cannot get owned tokens with a zero balance
+        assertEq(raftToken.balanceOf(address(joe)), 0);
+        vm.expectRevert(bytes("NFT.sol::ownedTokens() Address does not own any tokens"));
+        vm.prank(address(joe));
+        raftToken.ownedTokens();
+
+        // Joe can mint one token with an id equal to currentTokenId plus one
+        uint256 ownedId = raftToken.currentTokenId() + 1;
+        assert(joe.try_mint{value: 1 ether}(address(raftToken), 1));
+        assertEq(raftToken.balanceOf(address(joe)), 1);
+        assertEq(raftToken.ownerOf(ownedId), address(joe));
+
+        // Joe can get owned tokens with a balance of one or more tokens
+        vm.prank(address(joe));
+        uint256[] memory tokenIds = raftToken.ownedTokens();
+        assertEq(raftToken.balanceOf(address(joe)), tokenIds.length);
+        assertEq(ownedId, tokenIds[0]);
+    }
+
 
     // ---------------
     // Owner Functions

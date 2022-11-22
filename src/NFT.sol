@@ -72,8 +72,7 @@ contract NFT is ERC721, Ownable {
     /// @notice Helper function that returns an array of token ids that the calling address owns.
     /// @dev Runtime of O(n) where n is number of tokens minted, if the caller owns token ids near the first id.
     function ownedTokens() external view returns (uint256[] memory ids) {
-        require(currentTokenId > 0, "NFT.sol::ownedTokens() No tokens have been minted");
-        require(balanceOf(msg.sender) > 0, "NFT.sol::ownedTokens() Wallet does not own any tokens");
+        require(balanceOf(msg.sender) > 0, "NFT.sol::ownedTokens() Address does not own any tokens");
 
         uint256 currentId = currentTokenId;
         uint256 balance = balanceOf(msg.sender);
