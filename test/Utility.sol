@@ -90,9 +90,6 @@ contract Utility is Test {
             vm.deal(address(remaining), 25 ether);
             assert(remaining.try_mint{value: remainder * 10**18}(_contract, remainder));
         }
-
-        emit log_named_uint("Remainder", remainder);
-        emit log_named_uint("Quotient", quotient);
     }
 
     // ----------------------
