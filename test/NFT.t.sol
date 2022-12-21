@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import "../lib/forge-std/src/Test.sol";
 import "./Utility.sol";
 import "../src/NFT.sol";
-import "../src/Rewards.sol";
+import "../src/Gifts.sol";
 import "./utils/Merkle.sol";
 
 /// @author Andrew Gucci

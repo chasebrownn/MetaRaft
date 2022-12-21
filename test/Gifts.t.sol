@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "./Utility.sol";
-import "../src/Rewards.sol";
+import "../src/Gifts.sol";
 import "../src/NFT.sol";
 import "./utils/VRFCoordinatorV2Mock.sol";
 
