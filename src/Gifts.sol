@@ -65,7 +65,7 @@ contract Gifts is VRFConsumerBaseV2, Ownable {
     /// @notice Number of gift recipients and gifts available.
     uint256 public constant TOTAL_RECIPIENTS = 2511;
     /// @notice Used to track the start of the claiming period.
-    uint256 public immutable claimStart;
+    uint256 public claimStart;
     /// @notice Used to track the end of the claiming period.
     uint256 public claimEnd;
 
@@ -76,9 +76,9 @@ contract Gifts is VRFConsumerBaseV2, Ownable {
     /// @notice Address of stablecoin used as the gift currency.
     IERC20 public immutable stableCurrency;
     /// @notice Address of multi-signature wallet for ERC20 deposits.
-    address payable public multiSig;
+    address public multiSig;
     /// @notice Address of Circle account for depositing leftover stablecoin.
-    address payable public circleAccount;
+    address public circleAccount;
     /// @notice Used to store the address of the NFT contract.
     IERC721 public immutable nftContract;
     /// @notice Used to store all token ids before and after shuffling.
@@ -90,24 +90,23 @@ contract Gifts is VRFConsumerBaseV2, Ownable {
     // -----------
 
     /// @notice Initializes Gifts.sol.
-    /// @param _claimStart Timestamp indicating when the redemption window opens.
     /// @param _nftContract Contract address of the NFT contract.
     /// @param _vrfCoordinator Contract address for Chainlink's VRF Coordinator V2.
     /// @param _stableCurrency Contract address of the stablecoin used for gifts (default is USDC).
     /// @param _circleAccount Address of Circle account.
+    /// @param _multiSig Address of multi-signature wallet.
     constructor(
-        uint256 _claimStart,
         address _nftContract, 
         address _vrfCoordinator,
         address _stableCurrency, 
-        address _circleAccount
+        address _circleAccount,
+        address _multiSig
     ) VRFConsumerBaseV2(_vrfCoordinator) {
-        claimStart = _claimStart;
-        claimEnd = _claimStart + 7 days;
         nftContract = IERC721(_nftContract);
         vrfCoordinatorV2 = VRFCoordinatorV2Interface(_vrfCoordinator);
         stableCurrency = IERC20(_stableCurrency);
-        circleAccount = payable(_circleAccount);
+        circleAccount = _circleAccount;
+        multiSig = _multiSig;
     }
 
 
@@ -124,7 +123,7 @@ contract Gifts is VRFConsumerBaseV2, Ownable {
         Tier tier, 
         uint256 gift
     );
-    event ArrayValue(uint256 indexed val, uint256 indexed idx);
+
 
     // ------------------
     // External Functions
@@ -189,8 +188,8 @@ contract Gifts is VRFConsumerBaseV2, Ownable {
 
         // Send gift value using IERC20 etc.
         require(stableCurrency.balanceOf(address(this)) >= gift, "Gifts.sol::claimGift() Insufficient stable currency balance for claim");
-        bool success = stableCurrency.transfer(msg.sender, gift);
-        require(success, "Gifts.sol::claimGift() Transfer failed on stable currency");
+        claimed = stableCurrency.transfer(msg.sender, gift);
+        require(claimed, "Gifts.sol::claimGift() Transfer failed on stable currency");
 
         emit GiftClaimed(
             msg.sender, 
@@ -198,8 +197,6 @@ contract Gifts is VRFConsumerBaseV2, Ownable {
             tokenTier, 
             gift
         );
-
-        return true;
     }
 
     // ---------------
@@ -305,6 +302,12 @@ contract Gifts is VRFConsumerBaseV2, Ownable {
         emit GiftDataSet();
     }
 
+    /// @notice Sets the 7 day gift claiming period starting at the current block's timestamp.
+    function setClaimPeriod() external onlyOwner {
+        claimStart = block.timestamp;
+        claimEnd = block.timestamp + 7 days;
+    }
+
     /// @notice Allows owner to override the timestamp when the gift claiming period ends.
     /// @param _claimEnd New timestamp for the end of the gift claiming period.
     function overrideClaimEnd(uint256 _claimEnd) external onlyOwner {
@@ -321,14 +324,14 @@ contract Gifts is VRFConsumerBaseV2, Ownable {
     /// @param _circleAccount Address of the Circle account.
     function updateCircleAccount(address _circleAccount) external onlyOwner {
         require(_circleAccount != address(0), "Gifts.sol::updateCircleAccount() Address cannot be zero address");
-        circleAccount = payable(_circleAccount);
+        circleAccount = _circleAccount;
     }
 
     /// @notice Updates the address of the multi-signature wallet to safe withdraw ERC20 tokens. 
     /// @param _multiSig Address of the multi-signature wallet.
     function updateMultiSig(address _multiSig) external onlyOwner {
         require(_multiSig != address(0), "NFT.sol::updateMultiSig() Address cannot be zero address");
-        multiSig = payable(_multiSig);
+        multiSig = _multiSig;
     }
 
     /// @notice Withdraws leftover stablecoin balance of this contract into the Circle account.
@@ -340,7 +343,8 @@ contract Gifts is VRFConsumerBaseV2, Ownable {
         require(success, "Gift.sol::withdrawStable() Transfer failed on ERC20 contract");
     }
 
-    /// @notice Withdraws any ERC20 token balance of this contract into the Circle account.
+    /// @notice Withdraws any ERC20 token balance of this contract into the multisig wallet.
+    /// @param _contract Contract address of an ERC20 compliant token. 
     function withdrawERC20(address _contract) external onlyOwner {
         require(_contract != address(0), "Gift.sol::withdrawERC20() Contract address cannot be zero address");
 

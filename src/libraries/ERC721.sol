@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.0;
 
-/// @notice Modern, minimalist, and gas efficient ERC-721 implementation.
-/// @author Solmate (https://github.com/transmissions11/solmate/blob/main/src/tokens/ERC721.sol)
+/// @notice Modern, minimalist, and gas efficient ERC-721 implementation minus burning and safe minting.
+/// @author Modified from Solmate (https://github.com/transmissions11/solmate/blob/main/src/tokens/ERC721.sol)
 abstract contract ERC721 {
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -125,7 +125,7 @@ abstract contract ERC721 {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        INTERNAL MINT/BURN LOGIC
+                        INTERNAL MINT LOGIC
     //////////////////////////////////////////////////////////////*/
 
     function _mint(address to, uint256 id) internal virtual {
@@ -141,22 +141,6 @@ abstract contract ERC721 {
         _ownerOf[id] = to;
 
         emit Transfer(address(0), to, id);
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                        INTERNAL SAFE MINT LOGIC
-    //////////////////////////////////////////////////////////////*/
-
-    function _safeMint(address to, uint256 id) internal virtual {
-        _mint(to, id);
-
-        require(to.code.length == 0 || ERC721TokenReceiver(to).onERC721Received(msg.sender, address(0), id, "") == ERC721TokenReceiver.onERC721Received.selector, "UNSAFE_RECIPIENT" );
-    }
-
-    function _safeMint( address to, uint256 id, bytes memory data) internal virtual {
-        _mint(to, id);
-
-        require( to.code.length == 0 || ERC721TokenReceiver(to).onERC721Received( msg.sender, address(0), id, data ) == ERC721TokenReceiver.onERC721Received.selector, "UNSAFE_RECIPIENT" );
     }
 }
 

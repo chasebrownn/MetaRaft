@@ -70,7 +70,7 @@ contract NFT is ERC721, Ownable {
 
     /// @notice Helper function that returns an array of token ids that the calling address owns.
     /// @dev Runtime of O(n) where n is number of tokens minted, if the caller owns token ids near the first id.
-    function ownedTokens() external view returns (uint256[] memory ids) {
+    function ownedTokens() external view returns (uint256[] memory) {
         require(balanceOf(msg.sender) > 0, "NFT.sol::ownedTokens() Address does not own any tokens");
 
         uint256 currentId = currentTokenId;
@@ -78,13 +78,13 @@ contract NFT is ERC721, Ownable {
         uint256[] memory tokenIds = new uint256[](balance);
 
         // More gas efficient than incrementing upwards to currentId from one.
-        for(currentId; currentId > 0; --currentId) {
+        for(; currentId > 0; --currentId) {
 
             // If balanceOf(msg.sender) = 8 and only 8 tokens have been minted then currentTokenId = 8 
             // and every minted token id belongs to msg.sender.
             // It is impossible for someone to own a token id or have a balance that is greater than 
             // currentTokenId.
-            if(address(msg.sender) == ownerOf(currentId)) {
+            if(msg.sender == ownerOf(currentId)) {
                 // More gas efficient to use existing balance variable than create another to assign
                 // token ids to specific indexes within the array.
                 // If balanceOf(msg.sender) = 8, then this will cover indexes 7, 6, 5, 4, 3, 2, 1, 0
