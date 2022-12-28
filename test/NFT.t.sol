@@ -4,10 +4,12 @@ pragma solidity ^0.8.13;
 import "../lib/forge-std/src/Test.sol";
 import "./Utility.sol";
 import "../src/NFT.sol";
-import "../src/Rewards.sol";
+import "../src/Gifts.sol";
 import "./utils/Merkle.sol";
 
-contract NFTTest is Test, Utility {
+/// @author Andrew Gucci
+/// @notice Unit tests for NFT contract.
+contract NFTTest is Utility {
     // State variable for contracts.
     NFT raftToken;
     Merkle merkle;
@@ -19,7 +21,6 @@ contract NFTTest is Test, Utility {
 
     function setUp() public {
         createActors();
-        setUpTokens();
 
         // Initialize Merkle contract for constructing Merkle tree roots and proofs
         merkle = new Merkle();

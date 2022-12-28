@@ -5,7 +5,7 @@ import "./libraries/Ownable.sol";
 import "./libraries/Strings.sol";
 import "./libraries/ERC721.sol";
 import "./libraries/MerkleProof.sol";
-import {IERC20} from "./interfaces/InterfacesAggregated.sol";
+import "./interfaces/IERC20.sol";
 
 contract NFT is ERC721, Ownable {
     using Strings for uint256;
@@ -31,7 +31,6 @@ contract NFT is ERC721, Ownable {
     address payable public multiSig;                    /// @notice Address of multi-signature wallet for ERC20 deposits.
     bool public whitelistSaleActive;                    /// @notice Controls the access for whitelist mint.
     bool public publicSaleActive;                       /// @notice Controls the access for public mint.
-
 
     // -----------
     // Constructor
@@ -71,7 +70,7 @@ contract NFT is ERC721, Ownable {
 
     /// @notice Helper function that returns an array of token ids that the calling address owns.
     /// @dev Runtime of O(n) where n is number of tokens minted, if the caller owns token ids near the first id.
-    function ownedTokens() external view returns (uint256[] memory ids) {
+    function ownedTokens() external view returns (uint256[] memory) {
         require(balanceOf(msg.sender) > 0, "NFT.sol::ownedTokens() Address does not own any tokens");
 
         uint256 currentId = currentTokenId;
@@ -79,13 +78,13 @@ contract NFT is ERC721, Ownable {
         uint256[] memory tokenIds = new uint256[](balance);
 
         // More gas efficient than incrementing upwards to currentId from one.
-        for(currentId; currentId > 0; --currentId) {
+        for(; currentId > 0; --currentId) {
 
             // If balanceOf(msg.sender) = 8 and only 8 tokens have been minted then currentTokenId = 8 
             // and every minted token id belongs to msg.sender.
             // It is impossible for someone to own a token id or have a balance that is greater than 
             // currentTokenId.
-            if(address(msg.sender) == ownerOf(currentId)) {
+            if(msg.sender == ownerOf(currentId)) {
                 // More gas efficient to use existing balance variable than create another to assign
                 // token ids to specific indexes within the array.
                 // If balanceOf(msg.sender) = 8, then this will cover indexes 7, 6, 5, 4, 3, 2, 1, 0
@@ -127,7 +126,7 @@ contract NFT is ERC721, Ownable {
         require(currentTokenId + _amount <= TOTAL_RAFTS, "NFT.sol::mintWhitelist() Amount requested exceeds total supply");
         require(amountMinted[msg.sender] + _amount <= MAX_RAFTS, "NFT.sol::mintWhitelist() Amount requested exceeds maximum tokens per address (20)");
         require(msg.value == RAFT_PRICE * _amount, "NFT.sol::mintWhitelist() Message value must be equal to the price of token(s)");
-        require(MerkleProof.verify(_proof, whitelistRoot, keccak256(abi.encodePacked(msg.sender))), "NFT.sol::mintWhitelist() Address not whitelisted");
+        require(MerkleProof.verifyCalldata(_proof, whitelistRoot, keccak256(abi.encodePacked(msg.sender))), "NFT.sol::mintWhitelist() Address not whitelisted");
 
         amountMinted[msg.sender] += _amount;
         for(_amount; _amount > 0; --_amount) {
@@ -180,11 +179,11 @@ contract NFT is ERC721, Ownable {
         uint256 balance = address(this).balance;
         require(balance > 0, "NFT.sol::withdraw() Insufficient ETH balance");
 
-        (bool success,) = payable(circleAccount).call{value: balance}("");
+        (bool success,) = circleAccount.call{value: balance}("");
         require(success, "NFT.sol::withdraw() Unable to withdraw funds, recipient may have reverted");
     }
 
-    /// @notice Withdraws any ERC20 token balance of this contract into the owning address.
+    /// @notice Withdraws any ERC20 token balance of this contract into the multisig wallet.
     /// @param _contract Contract address of an ERC20 compliant token. 
     function withdrawERC20(address _contract) external onlyOwner {
         require(_contract != address(0), "NFT.sol::withdrawERC20() Contract address cannot be zero address");
