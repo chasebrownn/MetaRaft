@@ -5,9 +5,12 @@ import "./libraries/Ownable.sol";
 import "./libraries/Strings.sol";
 import "./libraries/ERC721.sol";
 import "./libraries/MerkleProof.sol";
+import "./libraries/VRFConsumerBaseV2.sol";
+import "./interfaces/VRFCoordinatorV2Interface.sol";
 import "./interfaces/IERC20.sol";
 
-contract NFT is ERC721, Ownable {
+/// @author Andrew Thomas
+contract NFT is ERC721, VRFConsumerBaseV2, Ownable {
     using Strings for uint256;
 
     // ---------------
@@ -15,22 +18,65 @@ contract NFT is ERC721, Ownable {
     // ---------------
 
     // ERC721 Basic
-    uint256 public currentTokenId;                      /// @notice Last token id minted, the next token id minted is currentTokenId + 1
-    uint256 public constant TOTAL_RAFTS = 10_000;       /// @notice Maximum number of tokens aka total supply, that can be minted (10000).
-    uint256 public constant RAFT_PRICE = 1 ether;       /// @notice Price of a single token in ETH.
-    uint256 public constant MAX_RAFTS = 20;             /// @notice Maximum number of tokens that can be minted per address (20).
+    /// @notice Last token id minted, the next token id minted is currentTokenId + 1
+    uint256 public currentTokenId;
+    /// @notice Total number of tokens that can be minted, aka total supply (10000).
+    uint256 public constant TOTAL_RAFTS = 10_000;
+    /// @notice Price of a single token in ETH.
+    uint256 public constant RAFT_PRICE = 1 ether;
+    /// @notice Maximum total number of tokens that can be minted per address (20).
+    uint256 public constant MAX_RAFTS = 20;
+
+    // Extras
+    /// @notice Merkle tree root hash used to verify whitelisted addresses.
+    bytes32 public immutable whitelistRoot;
+    /// @notice Extra tracking to prevent transfers to mint more tokens.
+    mapping(address => uint256) public amountMinted;
+    /// @notice Internal level tracking for every token.
+    mapping(uint256 => uint256) internal _levelOf;
+    
+    /// @notice Struct to group token ids and levels.
+    struct Level {
+        uint256 tokenId;
+        uint256 level;
+    }
+
+    // Chainlink & Shuffle State
+    /// @notice Entropy provided by Chainlink VRF.
+    uint256 public entropy;
+    /// @notice VRFCoodinatorV2 reference to make Chainlink VRF requests.
+    VRFCoordinatorV2Interface public immutable vrfCoordinatorV2;
+    /// @notice KeyHash required by VRF.
+    bytes32 public constant KEY_HASH = 0x79d3d8832d904592c0bf9818b621522c988bb8b0c05cdc3b15aea1b6e8db0c15;
+    /// @notice Number of block confirmations before VRF fulfills request.
+    uint16 public constant REQUEST_CONFIRMATIONS = 20;
+    /// @notice Callback gas limit for VRF request, ideal for one word of entropy.
+    uint32 public constant CALLBACK_GAS_LIMIT = 50_000;
+    /// @notice Number of random 256 bit words to be requested from VRF.
+    uint32 public constant NUM_WORDS = 1;
+
+    /// @notice Chainlink VRF subscription id.
+    uint64 public subId;
+    /// @notice Used to determine if entropy has been received from VRF.
+    bool public fulfilled;
+    /// @notice Used to determine if tokens have been finalized.
+    bool public finalized;
+    /// @notice Used to determine if the tokens array has been shuffled.
+    bool public shuffled;
+    /// @notice Controls the access for whitelist mint.
+    bool public whitelistMint;
+    /// @notice Controls the access for public mint.
+    bool public publicMint;
+
+    /// @notice Address of Circle account for ETH deposits.
+    address payable public circleAccount;
+    /// @notice Address of multi-signature wallet for ERC20 deposits.
+    address public multiSig;
 
     // ERC721 Metadata
     string public unrevealedURI;
     string public baseURI;
 
-    // Extras
-    mapping(address => uint256) public amountMinted;    /// @notice Internal balance tracking to prevent transfers to mint more tokens.
-    bytes32 public immutable whitelistRoot;             /// @notice Merkle tree root hash used to verify whitelisted addresses.
-    address payable public circleAccount;               /// @notice Address of Circle account for ETH deposits.
-    address payable public multiSig;                    /// @notice Address of multi-signature wallet for ERC20 deposits.
-    bool public whitelistSaleActive;                    /// @notice Controls the access for whitelist mint.
-    bool public publicSaleActive;                       /// @notice Controls the access for public mint.
 
     // -----------
     // Constructor
@@ -41,15 +87,17 @@ contract NFT is ERC721, Ownable {
         string memory _name, 
         string memory _symbol, 
         string memory _unrevealedURI,
+        bytes32 _whitelistRoot,
+        address _vrfCoordinator,
         address _circleAccount, 
-        address _multiSig, 
-        bytes32 _whitelistRoot
-    ) ERC721(_name, _symbol)
+        address _multiSig
+    ) ERC721(_name, _symbol) VRFConsumerBaseV2(_vrfCoordinator)
     {
         unrevealedURI = _unrevealedURI;
         whitelistRoot = _whitelistRoot;
+        vrfCoordinatorV2 = VRFCoordinatorV2Interface(_vrfCoordinator);
         circleAccount = payable(_circleAccount);
-        multiSig = payable(_multiSig);
+        multiSig = _multiSig;
     }
 
 
@@ -57,62 +105,115 @@ contract NFT is ERC721, Ownable {
     // Public Functions
     // ----------------
 
-    /// @notice Returns the tokens URI reference with the format "ipfs://<CID>/<token-id>.json“.
-    /// @dev Returns the unrevealed URI as long as the base URI has not been set or is empty.
-    /// @param _tokenId The tokens id.
+    /// @notice Returns the URI for a token id with the format "ipfs://<CID>/<token-id>.json“.
+    /// @dev Returns an unrevealed URI as long as the base URI has not been set or is empty.
+    /// @param _tokenId The token id.
     function tokenURI(uint256 _tokenId) public view virtual override returns (string memory) {
+        string memory base = baseURI;
         return
-            bytes(baseURI).length > 0 ? 
-                string(abi.encodePacked(baseURI, _tokenId.toString(), ".json")) 
+            bytes(base).length != 0 ? 
+                string(abi.encodePacked(base, _tokenId.toString(), ".json")) 
                 : 
                 string(abi.encodePacked(unrevealedURI, _tokenId.toString(), ".json"));
     }
 
-    /// @notice Helper function that returns an array of token ids that the calling address owns.
-    /// @dev Runtime of O(n) where n is number of tokens minted, if the caller owns token ids near the first id.
-    function ownedTokens() external view returns (uint256[] memory) {
-        require(balanceOf(msg.sender) > 0, "NFT.sol::ownedTokens() Address does not own any tokens");
 
-        uint256 currentId = currentTokenId;
-        uint256 balance = balanceOf(msg.sender);
-        uint256[] memory tokenIds = new uint256[](balance);
+    // ------------------
+    // External Functions
+    // ------------------
 
-        // More gas efficient than incrementing upwards to currentId from one.
-        for(; currentId > 0; --currentId) {
+    /// @notice Returns the level of a given token id.
+    /// @param _tokenId Token id.
+    /// @return level Level of the token id.
+    /// @dev Minted token levels are within [1...currentTokenId].
+    function levelOf(uint256 _tokenId) external view returns (uint256 level) {
+        require((level = _levelOf[_tokenId]) != 0, "NOT_MINTED");
+    }
 
-            // If balanceOf(msg.sender) = 8 and only 8 tokens have been minted then currentTokenId = 8 
-            // and every minted token id belongs to msg.sender.
-            // It is impossible for someone to own a token id or have a balance that is greater than 
-            // currentTokenId.
-            if(msg.sender == ownerOf(currentId)) {
-                // More gas efficient to use existing balance variable than create another to assign
-                // token ids to specific indexes within the array.
-                // If balanceOf(msg.sender) = 8, then this will cover indexes 7, 6, 5, 4, 3, 2, 1, 0
-                // in the tokenIds array and order owned token ids from lowest id to highest id.
-                tokenIds[--balance] = currentId;
+    /// @notice Returns an array of ordered token ids and their levels that the address owns.
+    /// @param _owner An address that owns some tokens.
+    /// @dev Runtime of O(n) where n is number of tokens minted, if the address owns token ids near the first id.
+    /// @dev This function should not be called on chain.
+    function ownedTokenLevels(address _owner) external view returns (Level[] memory tokenLevels) {
+        uint256 balance = _balanceOf[_owner];
+        tokenLevels = new Level[](balance);
+
+        // More gas efficient than incrementing upwards to currentId from one
+        for(uint256 currentId = currentTokenId; currentId > 0; --currentId) {
+
+            // If _balanceOf(_owner) = 8 and only 8 tokens have been minted, then currentTokenId = 8 
+            // and every minted token id belongs to _owner
+            // It is impossible for someone to own a token id or have a balance greater than 
+            // currentTokenId
+            if(_owner == _ownerOf[currentId]) {
+                // More gas efficient to use existing balance variable than create another 
+                // to assign token ids to specific indexes within the array
+                // If _balanceOf(_owner) = 8, then indexes 7, 6, 5, 4, 3, 2, 1, 0 are covered
+                // in the tokenIds array and token ids are ordered from lowest to highest id
+                tokenLevels[--balance] = Level({
+                    tokenId: currentId, 
+                    level: _levelOf[currentId]
+                });
                 if(balance == 0) {
-                    return tokenIds;
+                    break;
                 }
             }
         }
-        // Safety net, however the return should trigger within the for loop assuming that the
-        // balanceOf(msg.sender) is accurate.
-        return tokenIds;
     }
 
+    // NOTE: Estimated gas for different types of variable declarations and assignments (min is on revert condition)
+    // | ownedTokens              | 3279654 use return parameter
+    // | ownedTokens              | 3279659 no return parameter
+    // | ownedTokens              | 3279470 use second _balanceOf access with require
+    // | ownedTokens              | 3279453 no require check
+    /// @notice Returns an array of token ids that the given address owns.
+    /// @param _owner An address that owns some tokens.
+    /// @dev Runtime of O(n) where n is number of tokens minted, if the address owns token ids near the first id.
+    /// @dev This function should not be called on chain.
+    function ownedTokens(address _owner) external view returns (uint256[] memory tokenIds) {
+        uint256 balance = _balanceOf[_owner];        
+        tokenIds = new uint256[](balance);
+
+        // More gas efficient than incrementing upwards to currentId from one
+        for(uint256 currentId = currentTokenId; currentId > 0; --currentId) {
+            // If _balanceOf(_owner) = 8 and only 8 tokens have been minted, then currentTokenId = 8 
+            // and every minted token id belongs to _owner
+            // It is impossible for someone to own a token id or have a balance greater than 
+            // currentTokenId
+            if(_owner == _ownerOf[currentId]) {
+                // More gas efficient to use existing balance variable than create another 
+                // to assign token ids to specific indexes within the array
+                // If _balanceOf(_owner) = 8, then indexes 7, 6, 5, 4, 3, 2, 1, 0 are covered
+                // in the tokenIds array and token ids are ordered from lowest to highest id
+                tokenIds[--balance] = currentId;
+                if(balance == 0) {
+                    break;
+                }
+            }
+        }
+    }
+
+    // NOTE: Estimated gas for different types of variable declarations and assignments (min is on revert condition)
+    // | Function Name            | min             | avg    | median | max     | # calls |
+    // | mint                     | 804             | 991648 | 993543 | 1037343 | 501     |     using uint256 id = ++currentTokenId; inside loop
+    // | mint                     | 804             | 991716 | 993611 | 1037411 | 501     |     using uint256 id declared outside loop
+    // | mint                     | 810             | 991766 | 993661 | 1037461 | 501     |     using return variable
+    // | mint                     | 804             | 993485 | 995383 | 1039183 | 501     |     using only currentTokenId inside loop
     /// @notice This function allows tokens to be minted publicly and added to the total supply.
     /// @param _amount The amount of tokens to be minted.
     /// @dev Only 20 tokens can be minted per address. Will revert if current token id plus amount exceeds 10,000.
     function mint(uint256 _amount) external payable {
-        require(publicSaleActive, "NFT.sol::mint() Public sale is not currently active");
-        require(_amount <= MAX_RAFTS, "NFT.sol::mint() Amount requested exceeds maximum purchase (20)");
+        require(publicMint, "NFT.sol::mint() Public mint is not active");
+        require(_amount <= MAX_RAFTS, "NFT.sol::mint() Amount requested exceeds maximum");
         require(currentTokenId + _amount <= TOTAL_RAFTS, "NFT.sol::mint() Amount requested exceeds total supply");
-        require(amountMinted[msg.sender] + _amount <= MAX_RAFTS, "NFT.sol::mint() Amount requested exceeds maximum tokens per address (20)");
+        require(amountMinted[msg.sender] + _amount <= MAX_RAFTS, "NFT.sol::mint() Amount requested exceeds maximum tokens per address");
         require(msg.value == RAFT_PRICE * _amount, "NFT.sol::mint() Message value must be equal to the price of token(s)");
 
         amountMinted[msg.sender] += _amount;
-        for(_amount; _amount > 0; --_amount) {
-            _mint(msg.sender, ++currentTokenId);
+        for(; _amount > 0; --_amount) {
+            uint256 id = ++currentTokenId;
+            _mint(msg.sender, id);
+            _levelOf[id] = id;
         }
     }
 
@@ -121,16 +222,18 @@ contract NFT is ERC721, Ownable {
     /// @param _proof  Merkle proof for the calling address.
     /// @dev Only 20 tokens can be minted per address. Will revert if current token id plus amount exceeds 10,000.
     function mintWhitelist(uint256 _amount, bytes32[] calldata _proof) external payable {
-        require(whitelistSaleActive, "NFT.sol::mintWhitelist() Whitelist sale is not currently active");
-        require(_amount <= MAX_RAFTS, "NFT.sol::mintWhitelist() Amount requested exceeds maximum purchase (20)");
+        require(whitelistMint, "NFT.sol::mintWhitelist() Whitelist mint is not active");
+        require(_amount <= MAX_RAFTS, "NFT.sol::mintWhitelist() Amount requested exceeds maximum");
         require(currentTokenId + _amount <= TOTAL_RAFTS, "NFT.sol::mintWhitelist() Amount requested exceeds total supply");
-        require(amountMinted[msg.sender] + _amount <= MAX_RAFTS, "NFT.sol::mintWhitelist() Amount requested exceeds maximum tokens per address (20)");
+        require(amountMinted[msg.sender] + _amount <= MAX_RAFTS, "NFT.sol::mintWhitelist() Amount requested exceeds maximum tokens per address");
         require(msg.value == RAFT_PRICE * _amount, "NFT.sol::mintWhitelist() Message value must be equal to the price of token(s)");
         require(MerkleProof.verifyCalldata(_proof, whitelistRoot, keccak256(abi.encodePacked(msg.sender))), "NFT.sol::mintWhitelist() Address not whitelisted");
 
         amountMinted[msg.sender] += _amount;
-        for(_amount; _amount > 0; --_amount) {
-            _mint(msg.sender, ++currentTokenId);
+        for(; _amount > 0; --_amount) {
+            uint256 id = ++currentTokenId;
+            _mint(msg.sender, id);
+            _levelOf[id] = id;
         }
     }
 
@@ -139,6 +242,82 @@ contract NFT is ERC721, Ownable {
     // Owner Functions
     // ---------------
 
+    /// @notice Receives and assigns entropy from Chainlink VRF.
+    /// @dev This function must not revert per Chainlink VRF requirements.
+    /// @dev Prevents state changes from future requests once entropy is fulfilled.
+    function fulfillRandomWords(uint256, uint256[] memory randomWords) internal override {
+        if(!fulfilled) {
+            fulfilled = true;
+            entropy = randomWords[0];
+        }
+    }
+
+    /// @notice Requests one word of entropy from Chainlink VRF to shuffle the tokens.
+    /// @dev Entropy can only be fulfilled once, but requested multiple times until fulfilled.
+    function requestEntropy() external onlyOwner returns (uint256) {
+        require(!fulfilled, "NFT.sol::requestEntropy() Entropy already fulfilled");
+        return vrfCoordinatorV2.requestRandomWords(KEY_HASH, subId, REQUEST_CONFIRMATIONS, CALLBACK_GAS_LIMIT, NUM_WORDS);
+    }
+
+    /// @notice Finalizes public and whitelist mint to prepare tokens to be shuffled.
+    function finalizeMint() external onlyOwner {
+        require(!finalized, "NFT.sol::finalizeMint() Mint already finalized");
+        finalized = true;
+        publicMint = false;
+        whitelistMint = false;
+    }
+
+    /// @notice Randomly shuffles the levels of token ids using entropy fulfilled with Chainlink VRF.
+    /// @dev Can only shuffle with tokens minted, mint finalized, entropy fulfilled, and tokens not shuffled.
+    /// @dev Runtime of O(n) where n is the number of tokens minted.
+    function shuffleLevels() external onlyOwner {
+        require(currentTokenId != 0, "NFT.sol::shuffleLevels() No tokens to shuffle");
+        require(finalized, "NFT.sol::shuffleLevels() Mint must be finalized");
+        require(fulfilled, "NFT.sol::shuffleLevels() Entropy must be fulfilled");
+        require(!shuffled, "NFT.sol::shuffleLevels() Levels already shuffled");
+        
+        shuffled = true;
+
+        // This function will randomly shuffle the levels of all token ids
+        // mapping(uint256 => uint256)
+        // Given a token id, you get a level
+        // Token ids and levels have a range of [1,currentTokenId]
+
+        // Process:
+        // A random token id is selected within the current range, [1,currentTokenId]
+        // The random token id's level is swapped with the level of the last token id in the current range, currentTokenId
+        // The level of token id currentTokenId is set in stone
+
+        // A new random token id is selected within the range [1,currentTokenId-1], excluding token id currentTokenId
+        // The random token id's level is swapped with the level of the last token id in the current range, currentTokenId-1
+        // The level of token id currentTokenId-1 is set in stone
+
+        // ...
+
+        // At the end of this shuffling process each token id in range [1,currentTokenId] will have a random level
+        // Only token ids with levels less than or equal the total recipients will receive prizes
+
+        // Knuth shuffle implementation wrapped in unchecked block
+        // Overflow/underflow extremely unlikely given currentTokenId bound
+        // If something bad happens here, then bigger problems are at hand
+        unchecked {
+            // Iterates over token ids from currentTokenId to 1
+            // Finalizes levels for token ids starting with currentTokenId
+            for(uint256 lastTokenId = currentTokenId; lastTokenId > 0; --lastTokenId) {
+                // Generate a random token id between 1 and lastTokenId
+                // Modulo operator generates values between 0 and lastTokenId-1
+                // Adding 1 to the result shifts to values between 1 and lastTokenId
+                uint256 randomTokenId = (entropy % lastTokenId) + 1;
+                // Store the level of the random token id temporarily
+                uint256 levelTmp = _levelOf[randomTokenId];
+                // Update the random token id's level to last token id's level
+                _levelOf[randomTokenId] = _levelOf[lastTokenId];
+                // Update the last token id's level to the level of the random token id
+                _levelOf[lastTokenId] = levelTmp;
+            }
+        }
+    }
+
     /// @notice Updates the base URI for metadata stored on IPFS.
     /// @param _baseURI The IPFS URI pointing to the folder with JSON metadata for all tokens.
     /// @dev Must be of the format "ipfs://<CID>/“ where the CID references the folder with JSON metadata for all tokens.
@@ -146,16 +325,24 @@ contract NFT is ERC721, Ownable {
         baseURI = _baseURI;
     }
 
-    /// @notice Updates public sale state.
-    /// @param _state True if public sale is active, false if public sale is not active.
-    function setPublicSaleState(bool _state) external onlyOwner {
-        publicSaleActive = _state;
+    /// @notice Updates public mint state as long as mint has not been finalized.
+    /// @param _state True if public mint is active, false if public mint is not active.
+    function updatePublicMint(bool _state) external onlyOwner {
+        require(!finalized, "NFT.sol::updatePublicMint() Mint is finalized");
+        publicMint = _state;
     }
 
-    /// @notice Updates whitelist sale state.
-    /// @param _state True if whitelist sale is active, false if whitelist sale is not active.
-    function setWhitelistSaleState(bool _state) external onlyOwner {
-        whitelistSaleActive = _state;
+    /// @notice Updates whitelist mint state as long as mint has not been finalized.
+    /// @param _state True if whitelist mint is active, false if whitelist mint is not active.
+    function updateWhitelistMint(bool _state) external onlyOwner {
+        require(!finalized, "NFT.sol::updateWhitelistMint() Mint is finalized");
+        whitelistMint = _state;
+    }
+
+    /// @notice Allows owner to update the Chainlink VRF subscription id.
+    /// @param _subId New Chainlink VRF subscription id.
+    function updateSubId(uint64 _subId) external onlyOwner {
+        subId = _subId;
     }
 
     /// @notice Updates the address of the Circle account to withdraw ETH to. 
@@ -169,7 +356,7 @@ contract NFT is ERC721, Ownable {
     /// @param _multiSig Address of the multi-signature wallet.
     function updateMultiSig(address _multiSig) external onlyOwner {
         require(_multiSig != address(0), "NFT.sol::updateMultiSig() Address cannot be zero address");
-        multiSig = payable(_multiSig);
+        multiSig = _multiSig;
     }
 
     /// @notice Withdraws the entire ETH balance of this contract into the Circle account.
@@ -184,9 +371,9 @@ contract NFT is ERC721, Ownable {
     }
 
     /// @notice Withdraws any ERC20 token balance of this contract into the multisig wallet.
-    /// @param _contract Contract address of an ERC20 compliant token. 
+    /// @param _contract Address of an ERC20 compliant token. 
     function withdrawERC20(address _contract) external onlyOwner {
-        require(_contract != address(0), "NFT.sol::withdrawERC20() Contract address cannot be zero address");
+        require(_contract != address(0), "NFT.sol::withdrawERC20() Address cannot be zero address");
 
         uint256 balance = IERC20(_contract).balanceOf(address(this));
         require(balance > 0, "NFT.sol::withdrawERC20() Insufficient token balance");

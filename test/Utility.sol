@@ -4,15 +4,14 @@ pragma solidity ^0.8.13;
 import "./users/Actor.sol";
 import "../lib/forge-std/src/Vm.sol";
 import "../lib/forge-std/src/Test.sol";
-import "../src/interfaces/IERC20.sol";
 
 contract Utility is Test {
-    // ---------------------------
-    // Ethereum Contract Addresses
-    // ---------------------------
+    // ----------------------------
+    // Ethereum Contract References
+    // ----------------------------
 
-    // Mainnet Addresses
     address constant USDC = address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+    address constant LINK = address(0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0);
 
     // --------------
     // Primary Actors
@@ -31,49 +30,40 @@ contract Utility is Test {
     uint256 constant WAD = 10**18;
     uint256 constant RAY = 10**27;
 
-    // ---------
-    // Utilities
-    // ---------
-
-    // struct Token {
-    //     address addr; // ERC20 Mainnet address
-    //     uint256 slot; // Balance storage slot
-    //     address orcl; // Chainlink oracle address
-    // }
-
     // ----------------------
     // Actor Helper Functions
     // ----------------------
 
     function createActors() public {
+        vm.label(USDC, "USD Coin");
+        vm.label(LINK, "ChainLink Token");
+
         vm.label(address(joe), "Joe");
         vm.label(address(dev), "Dev");
         vm.deal(address(joe), 100 ether);
         vm.deal(address(dev), 100 ether);
     }
 
-    /// @notice Helper function to create a merkle tree whitelist for an amount of users.
-    /// @param _amount Number of whitelisted users.
-    /// @dev Returns an array of whitelisted users and an array of their hashed addresses.
-    function createWhitelist(uint256 _amount) public returns (Actor[] memory, bytes32[] memory) {
-        Actor[] memory whitelist = new Actor[](_amount);
-        bytes32[] memory tree = new bytes32[](_amount);
+    /// @notice Helper function to create a merkle tree whitelist for an amount of minters.
+    /// @param _amount Number of whitelisted minters.
+    /// @dev Returns an array of whitelisted minters and an array of their hashed addresses.
+    function createWhitelist(uint256 _amount) internal returns (Actor[] memory whitelist, bytes32[] memory tree) {
+        whitelist = new Actor[](_amount);
+        tree = new bytes32[](_amount);
 
         // Create an actor amount times and provide actors with ETH to mint
         for(uint256 i = 0; i < _amount; ++i) {
-            Actor user = new Actor();
-            vm.deal(address(user), 100 ether);
-            whitelist[i] = user;
-            tree[i] = keccak256(abi.encodePacked(address(user)));
+            Actor minter = new Actor();
+            vm.deal(address(minter), 100 ether);
+            whitelist[i] = minter;
+            tree[i] = keccak256(abi.encodePacked(address(minter)));
         }
-
-        return (whitelist, tree);
     }
 
     /// @notice Helper function to mint a desired amount of tokens from the NFT contract.
     /// @param _contract Contract address to mint tokens from.
     /// @param _amount Number of tokens to mint.
-    function mintTokens(address _contract, uint256 _amount) public {
+    function mintTokens(address _contract, uint256 _amount) internal {
         uint256 remainder = _amount % 20;
         uint256 quotient = _amount / 20;
 
@@ -85,7 +75,7 @@ contract Utility is Test {
         }
 
         // Mint remaining amount of tokens, if there is a remainder
-        if(remainder > 0) {
+        if(remainder != 0) {
             Actor remaining = new Actor();
             vm.deal(address(remaining), 25 ether);
             assert(remaining.try_mint{value: remainder * 10**18}(_contract, remainder));
@@ -96,73 +86,42 @@ contract Utility is Test {
     // Test Utility Functions
     // ----------------------
 
-    // /// @dev Foundry handles ERC20 token manipulation natively with the
-    // /// deal(address token, address to, uint256 give) function in Test.sol!
-    // mapping(bytes32 => Token) tokens;
+    /// @notice  Verify equality within accuracy decimals.
+    function withinPrecision(uint256 val0, uint256 val1, uint256 accuracy) public {
+        uint256 diff = val0 > val1 ? val0 - val1 : val1 - val0;
+        if (diff == 0) return;
 
-    // function setUpTokens() public {
-    //     tokens["USDC"].addr = USDC;
-    //     tokens["USDC"].slot = 9;
+        uint256 denominator = val0 == 0 ? val1 : val0;
+        bool check = ((diff * RAY) / denominator) < (RAY / 10**accuracy);
 
-    //     tokens["WETH"].addr = WETH;
-    //     tokens["WETH"].slot = 3;
-    // }
+        if (!check) {
+            // use Foundry's logging events to log string, uint pairs
+            emit log_named_uint( "Error: approx a == b not satisfied, accuracy digits ", accuracy);
+            emit log_named_uint("  Expected", val0);
+            emit log_named_uint("  Actual", val1);
+        }
+    }
 
-    // /// @notice Manipulate mainnet ERC20 balance.
-    // /// @param symbol ERC20 token symbol.
-    // /// @param account Address to manipulate the token balance of.
-    // /// @param amt Amount of tokens to "mint" to the address.
-    // function mint(bytes32 symbol, address account, uint256 amt) public {
-    //     address addr = tokens[symbol].addr;
-    //     uint256 slot = tokens[symbol].slot;
-    //     uint256 bal = IERC20(addr).balanceOf(account);
+    /// @notice Verify equality within difference.
+    function withinDiff(uint256 val0, uint256 val1, uint256 expectedDiff) public {
+        uint256 actualDiff = val0 > val1 ? val0 - val1 : val1 - val0;
+        bool check = actualDiff <= expectedDiff;
 
-    //     // use Foundry's vm to call "store" cheatcode
-    //     vm.store(
-    //         addr,
-    //         keccak256(abi.encode(account, slot)), // Mint tokens
-    //         bytes32(bal + amt)
-    //     );
+        if (!check) {
+            // use Foundry's logging events to log string, uint pairs
+            emit log_named_uint("Error: approx a == b not satisfied, accuracy difference ", expectedDiff);
+            emit log_named_uint("  Expected", val0);
+            emit log_named_uint("  Actual", val1);
+        }
+    }
 
-    //     assertEq(IERC20(addr).balanceOf(account), bal + amt); // Assert new balance
-    // }
+    function constrictToRange(uint256 val, uint256 min, uint256 max) public pure returns (uint256) {
+        return constrictToRange(val, min, max, false);
+    }
 
-    // /// @notice  Verify equality within accuracy decimals.
-    // function withinPrecision(uint256 val0, uint256 val1, uint256 accuracy) public {
-    //     uint256 diff = val0 > val1 ? val0 - val1 : val1 - val0;
-    //     if (diff == 0) return;
-
-    //     uint256 denominator = val0 == 0 ? val1 : val0;
-    //     bool check = ((diff * RAY) / denominator) < (RAY / 10**accuracy);
-
-    //     if (!check) {
-    //         // use Foundry's logging events to log string, uint pairs
-    //         emit log_named_uint( "Error: approx a == b not satisfied, accuracy digits ", accuracy);
-    //         emit log_named_uint("  Expected", val0);
-    //         emit log_named_uint("  Actual", val1);
-    //     }
-    // }
-
-    // /// @notice Verify equality within difference.
-    // function withinDiff(uint256 val0, uint256 val1, uint256 expectedDiff) public {
-    //     uint256 actualDiff = val0 > val1 ? val0 - val1 : val1 - val0;
-    //     bool check = actualDiff <= expectedDiff;
-
-    //     if (!check) {
-    //         // use Foundry's logging events to log string, uint pairs
-    //         emit log_named_uint("Error: approx a == b not satisfied, accuracy difference ", expectedDiff);
-    //         emit log_named_uint("  Expected", val0);
-    //         emit log_named_uint("  Actual", val1);
-    //     }
-    // }
-
-    // function constrictToRange(uint256 val, uint256 min, uint256 max) public pure returns (uint256) {
-    //     return constrictToRange(val, min, max, false);
-    // }
-
-    // function constrictToRange(uint256 val, uint256 min, uint256 max, bool nonZero) public pure returns (uint256) {
-    //     if (val == 0 && !nonZero) return 0;
-    //     else if (max == min) return max;
-    //     else return (val % (max - min)) + min;
-    // }
+    function constrictToRange(uint256 val, uint256 min, uint256 max, bool nonZero) public pure returns (uint256) {
+        if (val == 0 && !nonZero) return 0;
+        else if (max == min) return max;
+        else return (val % (max - min)) + min;
+    }
 }
