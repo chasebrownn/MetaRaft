@@ -1,26 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.13;
 
-import "./users/Actor.sol";
-import "../lib/forge-std/src/Vm.sol";
-import "../lib/forge-std/src/Test.sol";
+import { Actor } from "./Actor.sol";
+import { Test } from "../../lib/forge-std/src/Test.sol";
 
 contract Utility is Test {
     // ----------------------------
     // Ethereum Contract References
     // ----------------------------
 
-    address constant USDC = address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-    address constant LINK = address(0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0);
+    address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address constant LINK = 0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0;
 
     // --------------
     // Primary Actors
     // --------------
 
     Actor dev = new Actor();                    // Developer wallet
-    Actor joe = new Actor();                    // NFT holder
+    Actor joe = new Actor();                    // Average joe user
     address sig = makeAddr("MultiSig Wallet");  // MultiSig wallet
-    address crc = makeAddr("Circle Account");   // Circle Account
 
     // ---------
     // Constants

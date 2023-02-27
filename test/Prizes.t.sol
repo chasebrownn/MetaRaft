@@ -1,24 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.13;
 
-import "./Utility.sol";
-import "./utils/VRFCoordinatorV2Mock.sol";
-import "../src/Prizes.sol";
-import "../src/NFT.sol";
+import { Utility } from "./utils/Utility.sol";
+import { VRFCoordinatorV2Mock } from "./utils/VRFCoordinatorV2Mock.sol";
+import { IERC20 } from "../src/interfaces/IERC20.sol";
+import { NFT } from "../src/NFT.sol";
+import { Prizes } from "../src/Prizes.sol";
 
 /// @author Andrew Thomas
 /// @notice Unit tests for Prizes contract.
 contract PrizesTest is Utility {
     // State variables for contracts.
-    Prizes prizeContract;
-    NFT nftContract;
-    VRFCoordinatorV2Mock vrfCoordinator;
+    Prizes internal prizeContract;
+    NFT internal nftContract;
+    VRFCoordinatorV2Mock internal vrfCoordinator;
 
-    // State variables for claim timestamps and VRF.
-    uint256 claimStart;
-    uint256 claimEnd;
-    uint256[] entropy = [uint256(bytes32(0x01e4928c21c69891d8b1c3520a35b74f6df5f28a867f30b2cd9cd81a01b3aabd))];
-    uint64 subId;
+    // State variables for claiming and VRF.
+    uint256 internal claimStart;
+    uint256 internal claimEnd;
+    uint256[] internal entropy = [uint256(uint160(address(this)))];
+    uint64 internal subId;
 
     // State variables for number of prizes per tier.
     uint256 constant NUM_PRIZES_ONE = 1;
@@ -51,7 +52,6 @@ contract PrizesTest is Utility {
             "ipfs::/Unrevealed/",               // Unrevealed URI
             bytes32(0x0),                       // Whitelist root
             address(vrfCoordinator),            // Mock VRF coordinator
-            crc,                                // Circle account
             sig                                 // Multi-signature wallet
         );
 
@@ -63,7 +63,6 @@ contract PrizesTest is Utility {
         prizeContract = new Prizes(
             address(nftContract),               // NFT address
             USDC,                               // USDC ERC20 address
-            crc,                                // Circle account
             sig                                 // Multi-signature wallet
         );
         
@@ -100,7 +99,7 @@ contract PrizesTest is Utility {
         assertEq(address(prizeContract.nftContract()), address(nftContract));
         assertEq(address(prizeContract.stableCurrency()), USDC);
         assertEq(prizeContract.multiSig(), sig);
-        assertEq(prizeContract.circleAccount(), crc);
+        // assertEq(prizeContract.circleAccount(), crc);
 
         assertEq(prizeContract.TIER_ONE_LEVELS(), 1);
         assertEq(prizeContract.TIER_TWO_LEVELS(), 11);
@@ -413,21 +412,18 @@ contract PrizesTest is Utility {
         prizeContract.transferOwnership(address(dev));
 
         // Setup new addresses and balances
-        address newCrc = makeAddr("New Circle Account");
         address newSig = makeAddr("New MultiSig Wallet");
         deal(USDC, address(prizeContract), 100 * USD);
 
         // Joe cannot call functions with onlyOwner modifier
         assert(!joe.try_setClaimPeriod(address(prizeContract)));
         assert(!joe.try_overrideClaimEnd(address(prizeContract), 0));
-        assert(!joe.try_updateCircleAccount(address(prizeContract), newCrc));
         assert(!joe.try_updateMultiSig(address(prizeContract), newSig));
         assert(!joe.try_withdrawERC20(address(prizeContract), USDC));
 
         // Developer can call function with onlyOwner modifier
         assert(dev.try_setClaimPeriod(address(prizeContract)));
         assert(dev.try_overrideClaimEnd(address(prizeContract), 0));
-        assert(dev.try_updateCircleAccount(address(prizeContract), newCrc));
         assert(dev.try_updateMultiSig(address(prizeContract), newSig));
         assert(dev.try_withdrawERC20(address(prizeContract), USDC));
     }
@@ -454,31 +450,6 @@ contract PrizesTest is Utility {
         // Owner can override the end of the claim period to any timestamp value
         prizeContract.overrideClaimEnd(timestamp);
         assertEq(prizeContract.claimEnd(), timestamp);
-    }
-
-    // --- updateCircleAccount() ---
-
-    /// @notice Test that the circle account address can be updated to a new address.
-    function test_prizes_updateCircleAccount_Updated() public {
-        // Verify circle account state reflects deployment
-        assertEq(prizeContract.circleAccount(), crc);
-        
-        // Owner can update circle account to a new address
-        address newCrc = makeAddr("New Circle Account");
-        prizeContract.updateCircleAccount(newCrc);
-
-        // Verify circle account reflects changes
-        assertEq(prizeContract.circleAccount(), newCrc);
-    }
-
-    /// @notice Test that updating the circle account to the zero address reverts.
-    function test_prizes_updateCircleAccount_ZeroAddress() public {
-        // Verify circle account state reflects deployment
-        assertEq(prizeContract.circleAccount(), crc);
-
-        // Owner cannot update circle account to the zero address
-        vm.expectRevert("Prizes.sol::updateCircleAccount() Address cannot be zero address");
-        prizeContract.updateCircleAccount(address(0));
     }
 
     // --- updateMultiSig() ---
@@ -509,7 +480,7 @@ contract PrizesTest is Utility {
     // --- withdrawERC20() ---
     /// @dev Withdraw test cases must be run with an appropriate rpc url!
 
-    /// @notice Test that ERC20 token amounts other than stable currency, are withdrawn to multi-sig.
+    /// @notice Test that valid ERC20 token amounts are withdrawn to multi-sig.
     function testFuzz_prizes_withdrawERC20_Withdrawn(uint256 amount) public {
         if(amount < 1) {
             return;
@@ -517,21 +488,19 @@ contract PrizesTest is Utility {
 
         // Use LINK as an example ERC20 token
         IERC20 token = IERC20(LINK);
-        assertEq(token.balanceOf(crc), 0);
         assertEq(token.balanceOf(sig), 0);
         assertEq(token.balanceOf(address(prizeContract)), 0);
 
         // Simulate contract receiving an amount of LINK
         deal(address(token), address(prizeContract), amount);
 
-        // Owner can withdraw contract token balance to multisig wallet
+        // Owner can withdraw contract token balance to multi-sig wallet
         prizeContract.withdrawERC20(address(token));
-        assertEq(token.balanceOf(crc), 0);
         assertEq(token.balanceOf(sig), amount);
         assertEq(token.balanceOf(address(prizeContract)), 0);
     }
 
-    /// @notice Test that any stable currency token amounts are withdrawn to the Circle account.
+    /// @notice Test that stable currency token amounts are withdrawn to multi-sig.
     function testFuzz_prizes_withdrawERC20_WithdrawStable(uint256 amount) public {
         if(amount < 1) {
             return;
@@ -539,17 +508,15 @@ contract PrizesTest is Utility {
 
         // Use USDC which is the stable currency of the contract
         IERC20 token = prizeContract.stableCurrency();
-        assertEq(token.balanceOf(crc), 0);
         assertEq(token.balanceOf(sig), 0);
         assertEq(token.balanceOf(address(prizeContract)), 0);
 
         // Simulate contract receiving an amount of USDC
         deal(address(token), address(prizeContract), amount);
 
-        // Owner can withdraw contract token balance to circle account
+        // Owner can withdraw contract token balance to multi-sig wallet
         prizeContract.withdrawERC20(address(token));
-        assertEq(token.balanceOf(crc), amount);
-        assertEq(token.balanceOf(sig), 0);
+        assertEq(token.balanceOf(sig), amount);
         assertEq(token.balanceOf(address(prizeContract)), 0);
     }
 
@@ -564,7 +531,6 @@ contract PrizesTest is Utility {
     function test_prizes_withdrawERC20_InsufficientBalance() public {
         // Use LINK as an example ERC20 token
         IERC20 token = IERC20(LINK);
-        assertEq(token.balanceOf(crc), 0);
         assertEq(token.balanceOf(sig), 0);
         assertEq(token.balanceOf(address(prizeContract)), 0);
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.0;
 
-/// @notice Modern, minimalist, and gas efficient ERC-721 implementation minus burning and safe minting.
+/// @notice Modern, minimalist, and gas efficient ERC-721 implementation without burning and safe minting.
 /// @author Modified from Solmate (https://github.com/transmissions11/solmate/blob/main/src/tokens/ERC721.sol)
 abstract contract ERC721 {
     /*//////////////////////////////////////////////////////////////

@@ -1,27 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.13;
 
-import "./Utility.sol";
-import "./utils/Merkle.sol";
-import "./utils/VRFCoordinatorV2Mock.sol";
-import "../src/NFT.sol";
+import { Utility } from "./utils/Utility.sol";
+import { Actor } from "./utils/Actor.sol";
+import { VRFCoordinatorV2Mock } from "./utils/VRFCoordinatorV2Mock.sol";
+import { Merkle } from "./utils/Merkle.sol";
+import { IERC20 } from "../src/interfaces/IERC20.sol";
+import { NFT } from "../src/NFT.sol";
 
-/// @author Andrew Thomas
 /// @notice Unit tests for NFT contract.
+/// @author Andrew Thomas
 contract NFTTest is Utility {
     // State variable for contracts.
-    NFT nftContract;
-    VRFCoordinatorV2Mock vrfCoordinator;
-    Merkle merkle;
+    NFT internal nftContract;
+    VRFCoordinatorV2Mock internal vrfCoordinator;
+    Merkle internal merkle;
 
     // State variables for whitelist.
-    Actor[] whitelist;
-    bytes32[] tree;
-    bytes32 root;
+    Actor[] internal whitelist;
+    bytes32[] internal tree;
+    bytes32 internal root;
 
-    // State variables for randomness.
-    uint256[] entropy = [uint256(bytes32(0x01e4928c21c69891d8b1c3520a35b74f6df5f28a867f30b2cd9cd81a01b3aabd))];
-    uint64 subId;
+    // State variables for VRF.
+    uint256[] internal entropy = [uint256(uint160(address(this)))];
+    uint64 internal subId;
 
     function setUp() public {
         createActors();
@@ -45,7 +47,6 @@ contract NFTTest is Utility {
             "ipfs::/Unrevealed/",               // Unrevealed URI
             root,                               // Whitelist root
             address(vrfCoordinator),            // Mock VRF coordinator
-            crc,                                // Circle Account
             sig                                 // Multi-signature wallet
         );
 
@@ -66,7 +67,6 @@ contract NFTTest is Utility {
         assertEq(nftContract.unrevealedURI(), "ipfs::/Unrevealed/");
         assertEq(nftContract.whitelistRoot(), root);
         assertEq(address(nftContract.vrfCoordinatorV2()), address(vrfCoordinator));
-        assertEq(nftContract.circleAccount(), crc);
         assertEq(nftContract.multiSig(), sig);
 
         assertEq(nftContract.currentTokenId(), 0);
@@ -92,6 +92,7 @@ contract NFTTest is Utility {
     function testFuzz_nft_ModuloRangeRestriction(uint256 currentTokenId, uint256 vrfRandomWord) public {
         currentTokenId = bound(currentTokenId, 1, 10000);
         uint256 result = vrfRandomWord % currentTokenId + 1;
+
         // 1 <= result <= 10000
         assertGe(result, 1);
         assertLe(result, 10000);
@@ -313,13 +314,21 @@ contract NFTTest is Utility {
         assertEq(nftContract.currentTokenId(), 90);
         
         // Joe cannot mint more than the maximum amount at one time
-        vm.expectRevert("NFT.sol::mint() Amount requested exceeds maximum");
         vm.prank(address(joe));
+        vm.expectRevert("NFT.sol::mint() Amount requested exceeds maximum");
         nftContract.mint{value: 21 ether}(amount);
 
         // Joe can still mint up to the maximum amount at one time
         assert(joe.try_mint{value: 20 ether}(address(nftContract), 20));
     }
+
+    // function test_nft_mint_Overflow() public {
+    //     nftContract.updatePublicMint(true);
+    //     mintTokens(address(nftContract), 1);
+    //     vm.deal(address(joe), type(uint256).max-1);
+    //     vm.prank(address(joe));
+    //     nftContract.mint{value: type(uint256).max-1}(type(uint256).max-1);
+    // }
 
     /// @notice Test that an attempt to mint more than the total supply reverts.
     function test_nft_mint_TotalSupply() public {
@@ -639,12 +648,11 @@ contract NFTTest is Utility {
 
     /// @notice Test that the onlyOwner modifier reverts unless call is from the owner.
     /// @dev Must be run with an appropriate rpc url!
-    function test_nft_OnlyOwner() public {
+    function test_nft_onlyOwner() public {
         // Transfer ownership to the developer actor
         nftContract.transferOwnership(address(dev));
 
         // Setup new addresses and balances
-        address newCrc = makeAddr("New Circle Account");
         address newSig = makeAddr("New MultiSig Wallet");
         vm.deal(address(nftContract), 100 ether);
         deal(USDC, address(nftContract), 100 * USD);
@@ -654,7 +662,6 @@ contract NFTTest is Utility {
         assert(!joe.try_updatePublicMint(address(nftContract), true));
         assert(!joe.try_updateWhitelistMint(address(nftContract), true));
         assert(!joe.try_updateSubId(address(nftContract), subId));
-        assert(!joe.try_updateCircleAccount(address(nftContract), newCrc));
         assert(!joe.try_updateMultiSig(address(nftContract), newSig));
         assert(!joe.try_withdraw(address(nftContract)));
         assert(!joe.try_withdrawERC20(address(nftContract), USDC));
@@ -667,13 +674,13 @@ contract NFTTest is Utility {
         assert(dev.try_updatePublicMint(address(nftContract), true));
         assert(dev.try_updateWhitelistMint(address(nftContract), true));
         assert(dev.try_updateSubId(address(nftContract), subId));
-        assert(dev.try_updateCircleAccount(address(nftContract), newCrc));
         assert(dev.try_updateMultiSig(address(nftContract), newSig));
         assert(dev.try_withdraw(address(nftContract)));
         assert(dev.try_withdrawERC20(address(nftContract), USDC));
+
         // Mint one token and fulfill entropy for shuffling
-        assert(dev.try_requestEntropy(address(nftContract)));        
         mintTokens(address(nftContract), 1);
+        assert(dev.try_requestEntropy(address(nftContract)));        
         vrfCoordinator.fulfillRandomWordsWithOverride(1, address(nftContract), entropy);
         assert(dev.try_finalizeMint(address(nftContract)));
         assert(dev.try_shuffleLevels(address(nftContract)));
@@ -1017,31 +1024,6 @@ contract NFTTest is Utility {
         nftContract.updateWhitelistMint(true);
     }
 
-    // --- updateCircleAccount() ---
-
-    /// @notice Test that the circle account address can be updated to a new address.
-    function test_nft_updateCircleAccount_Updated() public {
-        // Verify circle account state reflects deployment
-        assertEq(nftContract.circleAccount(), crc);
-        
-        // Owner can update circle account to a new address
-        address newCrc = makeAddr("New Circle Account");
-        nftContract.updateCircleAccount(newCrc);
-
-        // Verify circle account reflects changes
-        assertEq(nftContract.circleAccount(), newCrc);
-    }
-
-    /// @notice Test that updating the circle account to the zero address reverts.
-    function test_nft_updateCircleAccount_ZeroAddress() public {
-        // Verify circle account state reflects deployment
-        assertEq(nftContract.circleAccount(), crc);
-
-        // Owner cannot update circle account to the zero address
-        vm.expectRevert("NFT.sol::updateCircleAccount() Address cannot be zero address");
-        nftContract.updateCircleAccount(address(0));
-    }
-
     // --- updateMultiSig() ---
 
     /// @notice Test that the multisig wallet address can be updated to a new address.
@@ -1068,12 +1050,11 @@ contract NFTTest is Utility {
     }
     
     // --- withdraw() ---
-    /// @dev Withdraw test cases must be run with an appropriate rpc url!
 
-    /// @notice Test that the balance of the contract can be withdrawn to circle account.
+    /// @notice Test that the balance of the contract can be withdrawn to multisig wallet.
     function test_nft_withdraw_Basic() public {
-        assertEq(crc.balance, 0);
         assertEq(address(nftContract).balance, 0);
+        assertEq(sig.balance, 0);
 
         // Simulate minting out by giving NFT contract an Ether balance of TOTAL_RAFTS * RAFT_PRICE
         uint256 totalBalance = nftContract.TOTAL_RAFTS() * nftContract.RAFT_PRICE();
@@ -1082,14 +1063,33 @@ contract NFTTest is Utility {
 
         // Withdraw NFT contract balance after minting out to circle account
         nftContract.withdraw();
-        assertEq(crc.balance, totalBalance);
         assertEq(address(nftContract).balance, 0);
+        assertEq(sig.balance, totalBalance);
+    }
+
+    /// @notice Test that nonzero balances of the contract can be withdrawn to multisig wallet.
+    function testFuzz_nft_withdraw_Withdrawn(uint256 amount) public {
+        if(amount < 1) {
+            return;
+        }
+
+        assertEq(address(nftContract).balance, 0);
+        assertEq(sig.balance, 0);
+
+        // Simulate the NFT contract receiving an amount of Ether
+        vm.deal(address(nftContract), amount);
+        assertEq(address(nftContract).balance, amount);
+
+        // Withdraw NFT contract balance after receiving an amount of Ether from mint
+        nftContract.withdraw();
+        assertEq(address(nftContract).balance, 0);
+        assertEq(sig.balance, amount);
     }
 
     /// @notice Test that withdrawal attempts when the contract balance is zero revert.
     function test_nft_withdraw_InsufficientBalance() public {
-        assertEq(crc.balance, 0);
         assertEq(address(nftContract).balance, 0);
+        assertEq(sig.balance, 0);
 
         // Owner cannot withdraw from the contract unless the contract contains Ether.
         vm.expectRevert("NFT.sol::withdraw() Insufficient ETH balance");
@@ -1099,17 +1099,18 @@ contract NFTTest is Utility {
     /// @notice Test that withdrawal attempts revert when the recipient reverts on transfer.
     function test_nft_withdraw_BadRecipient() public {
         // Actor is a contract that cannot receive Ether on calls
-        Actor newCrc = new Actor();
-        assertEq(address(newCrc).balance, 0);
+        Actor newMultiSig = new Actor();
+        nftContract.updateMultiSig(address(newMultiSig));
+
         assertEq(address(nftContract).balance, 0);
-        nftContract.updateCircleAccount(address(newCrc));
+        assertEq(address(newMultiSig).balance, 0);
 
         // Simulate minting out by giving NFT contract an Ether balance of TOTAL_RAFTS * RAFT_PRICE
         uint256 totalBalance = nftContract.TOTAL_RAFTS() * nftContract.RAFT_PRICE();
         vm.deal(address(nftContract), totalBalance);
         assertEq(address(nftContract).balance, totalBalance);
 
-        // Owner cannot withdraw to a circle account if the circle account cannot accept Ether
+        // Owner cannot withdraw to multi-sig if the address cannot accept Ether
         vm.expectRevert("NFT.sol::withdraw() Unable to withdraw funds, recipient may have reverted");
         nftContract.withdraw();
     }
@@ -1123,19 +1124,19 @@ contract NFTTest is Utility {
             return;
         }
 
-        // Use USDC as an example ERC20 token
-        IERC20 token = IERC20(USDC);
-        assertEq(token.balanceOf(sig), 0);
+        // Use LINK as an example ERC20 token
+        IERC20 token = IERC20(LINK);
         assertEq(token.balanceOf(address(nftContract)), 0);
+        assertEq(token.balanceOf(sig), 0);
 
-        // Simulate NFT contract receiving an amount of USDC
-        deal(address(USDC), address(nftContract), amount);
+        // Simulate NFT contract receiving an amount of LINK
+        deal(address(LINK), address(nftContract), amount);
         assertEq(token.balanceOf(address(nftContract)), amount);
 
-        // Owner can withdraw NFT contract ERC20 balance to multisig wallet
-        nftContract.withdrawERC20(USDC);
-        assertEq(token.balanceOf(sig), amount);
+        // Owner can withdraw NFT contract ERC20 balance to multi-sig wallet
+        nftContract.withdrawERC20(LINK);
         assertEq(token.balanceOf(address(nftContract)), 0);
+        assertEq(token.balanceOf(sig), amount);
     }
 
     /// @notice Test that ERC20 withdrawl attempts from the zero address revert.
@@ -1147,13 +1148,13 @@ contract NFTTest is Utility {
 
     /// @notice Test that ERC20 withdrawl attempts when the contract balance is zero revert.
     function test_nft_withdrawERC20_InsufficientBalance() public {
-        // Use USDC as an example ERC20 token
-        IERC20 token = IERC20(USDC);
-        assertEq(token.balanceOf(sig), 0);
+        // Use LINK as an example ERC20 token
+        IERC20 token = IERC20(LINK);
         assertEq(token.balanceOf(address(nftContract)), 0);
+        assertEq(token.balanceOf(sig), 0);
 
         // Owner cannot withdraw NFT contract token balance when the balance is zero
         vm.expectRevert("NFT.sol::withdrawERC20() Insufficient token balance");
-        nftContract.withdrawERC20(USDC);
+        nftContract.withdrawERC20(LINK);
     }
 }

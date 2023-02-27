@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.13;
 
-import "./interfaces/IRaft721.sol";
-import "./interfaces/IERC20.sol";
-import "./libraries/Ownable.sol";
+import { Owned } from "./bases/Owned.sol";
+import { IRaft721 } from "./interfaces/IRaft721.sol";
+import { IERC20 } from "./interfaces/IERC20.sol";
 
+/// @notice MetaRaft Prizes Distribution
 /// @author Andrew Thomas
-contract Prizes is Ownable {
+contract Prizes is Owned {
 
     // ---------------
     // State Variables
@@ -33,7 +34,7 @@ contract Prizes is Ownable {
     /// @notice Decimals of USDC ERC20 implementation for prize values.
     uint256 public constant STABLE_DECIMALS = 10**6;
     /// @notice Stable currency value for tier one prizes.
-    uint256 public constant TIER_ONE_PRIZE = 0;    
+    uint256 public constant TIER_ONE_PRIZE = 0;
     /// @notice Stable currency value for tier two prizes.
     uint256 public constant TIER_TWO_PRIZE = 10_000 * STABLE_DECIMALS;
     /// @notice Stable currency value for tier four prizes.
@@ -74,8 +75,6 @@ contract Prizes is Ownable {
     IERC20 public immutable stableCurrency;
     /// @notice Address of multi-signature wallet for ERC20 deposits.
     address public multiSig;
-    /// @notice Address of Circle account for leftover stablecoin deposits.
-    address public circleAccount;
 
 
     // -----------
@@ -85,17 +84,16 @@ contract Prizes is Ownable {
     /// @notice Initializes Prizes.sol.
     /// @param _nftContract Contract address of the NFT.
     /// @param _stableCurrency Contract address of stablecoin used for prizes (default is USDC).
-    /// @param _circleAccount Address of Circle account.
     /// @param _multiSig Address of multi-signature wallet.
     constructor(
         address _nftContract, 
         address _stableCurrency, 
-        address _circleAccount,
         address _multiSig
-    ) {
+    )
+        Owned(msg.sender) 
+    {
         nftContract = IRaft721(_nftContract);
         stableCurrency = IERC20(_stableCurrency);
-        circleAccount = _circleAccount;
         multiSig = _multiSig;
     }
 
@@ -223,13 +221,6 @@ contract Prizes is Ownable {
         claimEnd = _claimEnd;
     }
 
-    /// @notice Updates the address of the Circle account to withdraw leftover stable currency to. 
-    /// @param _circleAccount Address of the Circle account.
-    function updateCircleAccount(address _circleAccount) external onlyOwner {
-        require(_circleAccount != address(0), "Prizes.sol::updateCircleAccount() Address cannot be zero address");
-        circleAccount = _circleAccount;
-    }
-
     /// @notice Updates the address of the multi-signature wallet to safe withdraw ERC20 tokens. 
     /// @param _multiSig Address of the multi-signature wallet.
     function updateMultiSig(address _multiSig) external onlyOwner {
@@ -245,11 +236,6 @@ contract Prizes is Ownable {
 
         uint256 balance = IERC20(_contract).balanceOf(address(this));
         require(balance > 0, "Prizes.sol::withdrawERC20() Insufficient token balance");
-
-        address receiver = multiSig;
-        if(_contract == address(stableCurrency)) {
-            receiver = circleAccount;
-        }
-        require(IERC20(_contract).transfer(receiver, balance), "Prizes.sol::withdrawERC20() Transfer failed on ERC20 contract");
+        require(IERC20(_contract).transfer(multiSig, balance), "Prizes.sol::withdrawERC20() Transfer failed on ERC20 contract");
     }
 }

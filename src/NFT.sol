@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.13;
 
-import "./libraries/Ownable.sol";
-import "./libraries/Strings.sol";
-import "./libraries/ERC721.sol";
-import "./libraries/MerkleProof.sol";
-import "./libraries/VRFConsumerBaseV2.sol";
-import "./interfaces/VRFCoordinatorV2Interface.sol";
-import "./interfaces/IERC20.sol";
+import { ERC721 } from "./bases/ERC721.sol";
+import { VRFConsumerBaseV2 } from "./bases/VRFConsumerBaseV2.sol";
+import { Owned } from "./bases/Owned.sol";
+import { LibString } from "./libraries/LibString.sol";
+import { MerkleProofLib } from "./libraries/MerkleProofLib.sol";
+import { VRFCoordinatorV2Interface } from "./interfaces/VRFCoordinatorV2Interface.sol";
+import { IERC20 } from "./interfaces/IERC20.sol";
 
+/// @notice MetaRaft NFT
 /// @author Andrew Thomas
-contract NFT is ERC721, VRFConsumerBaseV2, Ownable {
-    using Strings for uint256;
+contract NFT is ERC721, VRFConsumerBaseV2, Owned {
+    using LibString for uint256;
 
     // ---------------
     // State Variables
@@ -34,12 +35,6 @@ contract NFT is ERC721, VRFConsumerBaseV2, Ownable {
     mapping(address => uint256) public amountMinted;
     /// @notice Internal level tracking for every token.
     mapping(uint256 => uint256) internal _levelOf;
-    
-    /// @notice Struct to group token ids and levels.
-    struct Level {
-        uint256 tokenId;
-        uint256 level;
-    }
 
     // Chainlink & Shuffle State
     /// @notice Entropy provided by Chainlink VRF.
@@ -68,9 +63,7 @@ contract NFT is ERC721, VRFConsumerBaseV2, Ownable {
     /// @notice Controls the access for public mint.
     bool public publicMint;
 
-    /// @notice Address of Circle account for ETH deposits.
-    address payable public circleAccount;
-    /// @notice Address of multi-signature wallet for ERC20 deposits.
+    /// @notice Address of multi-signature wallet for ETH or ERC20 deposits.
     address public multiSig;
 
     // ERC721 Metadata
@@ -89,14 +82,15 @@ contract NFT is ERC721, VRFConsumerBaseV2, Ownable {
         string memory _unrevealedURI,
         bytes32 _whitelistRoot,
         address _vrfCoordinator,
-        address _circleAccount, 
         address _multiSig
-    ) ERC721(_name, _symbol) VRFConsumerBaseV2(_vrfCoordinator)
+    ) 
+        ERC721(_name, _symbol) 
+        VRFConsumerBaseV2(_vrfCoordinator) 
+        Owned(msg.sender)
     {
         unrevealedURI = _unrevealedURI;
         whitelistRoot = _whitelistRoot;
         vrfCoordinatorV2 = VRFCoordinatorV2Interface(_vrfCoordinator);
-        circleAccount = payable(_circleAccount);
         multiSig = _multiSig;
     }
 
@@ -112,9 +106,9 @@ contract NFT is ERC721, VRFConsumerBaseV2, Ownable {
         string memory base = baseURI;
         return
             bytes(base).length != 0 ? 
-                string(abi.encodePacked(base, _tokenId.toString(), ".json")) 
+                string.concat(base, _tokenId.toString(), ".json") 
                 : 
-                string(abi.encodePacked(unrevealedURI, _tokenId.toString(), ".json"));
+                string.concat(unrevealedURI, _tokenId.toString(), ".json");
     }
 
 
@@ -130,42 +124,6 @@ contract NFT is ERC721, VRFConsumerBaseV2, Ownable {
         require((level = _levelOf[_tokenId]) != 0, "NOT_MINTED");
     }
 
-    /// @notice Returns an array of ordered token ids and their levels that the address owns.
-    /// @param _owner An address that owns some tokens.
-    /// @dev Runtime of O(n) where n is number of tokens minted, if the address owns token ids near the first id.
-    /// @dev This function should not be called on chain.
-    function ownedTokenLevels(address _owner) external view returns (Level[] memory tokenLevels) {
-        uint256 balance = _balanceOf[_owner];
-        tokenLevels = new Level[](balance);
-
-        // More gas efficient than incrementing upwards to currentId from one
-        for(uint256 currentId = currentTokenId; currentId > 0; --currentId) {
-
-            // If _balanceOf(_owner) = 8 and only 8 tokens have been minted, then currentTokenId = 8 
-            // and every minted token id belongs to _owner
-            // It is impossible for someone to own a token id or have a balance greater than 
-            // currentTokenId
-            if(_owner == _ownerOf[currentId]) {
-                // More gas efficient to use existing balance variable than create another 
-                // to assign token ids to specific indexes within the array
-                // If _balanceOf(_owner) = 8, then indexes 7, 6, 5, 4, 3, 2, 1, 0 are covered
-                // in the tokenIds array and token ids are ordered from lowest to highest id
-                tokenLevels[--balance] = Level({
-                    tokenId: currentId, 
-                    level: _levelOf[currentId]
-                });
-                if(balance == 0) {
-                    break;
-                }
-            }
-        }
-    }
-
-    // NOTE: Estimated gas for different types of variable declarations and assignments (min is on revert condition)
-    // | ownedTokens              | 3279654 use return parameter
-    // | ownedTokens              | 3279659 no return parameter
-    // | ownedTokens              | 3279470 use second _balanceOf access with require
-    // | ownedTokens              | 3279453 no require check
     /// @notice Returns an array of token ids that the given address owns.
     /// @param _owner An address that owns some tokens.
     /// @dev Runtime of O(n) where n is number of tokens minted, if the address owns token ids near the first id.
@@ -193,12 +151,6 @@ contract NFT is ERC721, VRFConsumerBaseV2, Ownable {
         }
     }
 
-    // NOTE: Estimated gas for different types of variable declarations and assignments (min is on revert condition)
-    // | Function Name            | min             | avg    | median | max     | # calls |
-    // | mint                     | 804             | 991648 | 993543 | 1037343 | 501     |     using uint256 id = ++currentTokenId; inside loop
-    // | mint                     | 804             | 991716 | 993611 | 1037411 | 501     |     using uint256 id declared outside loop
-    // | mint                     | 810             | 991766 | 993661 | 1037461 | 501     |     using return variable
-    // | mint                     | 804             | 993485 | 995383 | 1039183 | 501     |     using only currentTokenId inside loop
     /// @notice This function allows tokens to be minted publicly and added to the total supply.
     /// @param _amount The amount of tokens to be minted.
     /// @dev Only 20 tokens can be minted per address. Will revert if current token id plus amount exceeds 10,000.
@@ -227,7 +179,7 @@ contract NFT is ERC721, VRFConsumerBaseV2, Ownable {
         require(currentTokenId + _amount <= TOTAL_RAFTS, "NFT.sol::mintWhitelist() Amount requested exceeds total supply");
         require(amountMinted[msg.sender] + _amount <= MAX_RAFTS, "NFT.sol::mintWhitelist() Amount requested exceeds maximum tokens per address");
         require(msg.value == RAFT_PRICE * _amount, "NFT.sol::mintWhitelist() Message value must be equal to the price of token(s)");
-        require(MerkleProof.verifyCalldata(_proof, whitelistRoot, keccak256(abi.encodePacked(msg.sender))), "NFT.sol::mintWhitelist() Address not whitelisted");
+        require(MerkleProofLib.verify(_proof, whitelistRoot, keccak256(abi.encodePacked(msg.sender))), "NFT.sol::mintWhitelist() Address not whitelisted");
 
         amountMinted[msg.sender] += _amount;
         for(; _amount > 0; --_amount) {
@@ -295,7 +247,6 @@ contract NFT is ERC721, VRFConsumerBaseV2, Ownable {
         // ...
 
         // At the end of this shuffling process each token id in range [1,currentTokenId] will have a random level
-        // Only token ids with levels less than or equal the total recipients will receive prizes
 
         // Knuth shuffle implementation wrapped in unchecked block
         // Overflow/underflow extremely unlikely given currentTokenId bound
@@ -345,13 +296,6 @@ contract NFT is ERC721, VRFConsumerBaseV2, Ownable {
         subId = _subId;
     }
 
-    /// @notice Updates the address of the Circle account to withdraw ETH to. 
-    /// @param _circleAccount Address of the Circle account.
-    function updateCircleAccount(address _circleAccount) external onlyOwner {
-        require(_circleAccount != address(0), "NFT.sol::updateCircleAccount() Address cannot be zero address");
-        circleAccount = payable(_circleAccount);
-    }
-
     /// @notice Updates the address of the multi-signature wallet to safe withdraw ERC20 tokens. 
     /// @param _multiSig Address of the multi-signature wallet.
     function updateMultiSig(address _multiSig) external onlyOwner {
@@ -359,14 +303,14 @@ contract NFT is ERC721, VRFConsumerBaseV2, Ownable {
         multiSig = _multiSig;
     }
 
-    /// @notice Withdraws the entire ETH balance of this contract into the Circle account.
+    /// @notice Withdraws the entire ETH balance of this contract into the multisig wallet.
     /// @dev Call pattern adopted from the sendValue(address payable recipient, uint256 amount)
     ///      function in OZ's utils/Address.sol contract. "Please consider reentrancy potential" - OZ.
     function withdraw() external onlyOwner {
         uint256 balance = address(this).balance;
         require(balance > 0, "NFT.sol::withdraw() Insufficient ETH balance");
 
-        (bool success,) = circleAccount.call{value: balance}("");
+        (bool success,) = multiSig.call{value: balance}("");
         require(success, "NFT.sol::withdraw() Unable to withdraw funds, recipient may have reverted");
     }
 
@@ -378,7 +322,6 @@ contract NFT is ERC721, VRFConsumerBaseV2, Ownable {
         uint256 balance = IERC20(_contract).balanceOf(address(this));
         require(balance > 0, "NFT.sol::withdrawERC20() Insufficient token balance");
 
-        bool success = IERC20(_contract).transfer(multiSig, balance);
-        require(success, "NFT.sol::withdrawERC20() Transfer failed on ERC20 contract");
+        require(IERC20(_contract).transfer(multiSig, balance), "NFT.sol::withdrawERC20() Transfer failed on ERC20 contract");
     }
 }

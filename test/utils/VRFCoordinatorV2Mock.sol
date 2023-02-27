@@ -2,9 +2,8 @@
 // A mock for testing code that relies on VRFCoordinatorV2.
 pragma solidity ^0.8.4;
 
-// import "../interfaces/LinkTokenInterface.sol"; Unnecessary import from Chainlink?
-import "../../src/interfaces/VRFCoordinatorV2Interface.sol";
-import "../../src/libraries/VRFConsumerBaseV2.sol";
+import { VRFCoordinatorV2Interface } from "../../src/interfaces/VRFCoordinatorV2Interface.sol";
+import { VRFConsumerBaseV2 } from "../../src/bases/VRFConsumerBaseV2.sol";
 
 contract VRFCoordinatorV2Mock is VRFCoordinatorV2Interface {
   uint96 public immutable BASE_FEE;
