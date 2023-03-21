@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.0;
 
-/// @notice Modern, minimalist, and gas efficient ERC-721 implementation minus burning and safe minting.
+/// @notice Modern, minimalist, and gas efficient ERC-721 implementation without burning and safe minting.
 /// @author Modified from Solmate (https://github.com/transmissions11/solmate/blob/main/src/tokens/ERC721.sol)
 abstract contract ERC721 {
     /*//////////////////////////////////////////////////////////////
@@ -79,7 +79,7 @@ abstract contract ERC721 {
         emit ApprovalForAll(msg.sender, operator, approved);
     }
 
-    function transferFrom( address from, address to,uint256 id) public virtual {
+    function transferFrom(address from, address to, uint256 id) public virtual {
         require(from == _ownerOf[id], "WRONG_FROM");
 
         require(to != address(0), "INVALID_RECIPIENT");

@@ -21,9 +21,9 @@ contract Actor {
         (ok,) = address(token).call(abi.encodeWithSignature(sig, _from, _to, _id));
     }
 
-    function try_ownedTokens(address token) external returns (bool ok) {
-        string memory sig = "ownedTokens()";
-        (ok,) = address(token).call(abi.encodeWithSignature(sig));
+    function try_ownedTokens(address token, address _owner) external returns (bool ok) {
+        string memory sig = "ownedTokens(address)";
+        (ok,) = address(token).call(abi.encodeWithSignature(sig, _owner));
     }
 
     function try_tokenURI(address token, uint256 _id) external returns (bool ok) {
@@ -31,20 +31,40 @@ contract Actor {
         (ok,) = address(token).call(abi.encodeWithSignature(sig, _id));
     }
 
+    function try_requestEntropy(address token) external returns (bool ok) {
+        string memory sig = "requestEntropy()";
+        (ok,) = address(token).call(abi.encodeWithSignature(sig));
+    }
+
+    function try_finalizeMint(address token) external returns (bool ok) {
+        string memory sig = "finalizeMint()";
+        (ok,) = address(token).call(abi.encodeWithSignature(sig));
+    }
+
+    function try_shuffleLevels(address token) external returns (bool ok) {
+        string memory sig = "shuffleLevels()";
+        (ok,) = address(token).call(abi.encodeWithSignature(sig));
+    }   
+
     function try_setBaseURI(address token, string memory _baseURI) external returns (bool ok) {
         string memory sig = "setBaseURI(string)";
         (ok,) = address(token).call(abi.encodeWithSignature(sig, _baseURI));
     }
 
-    function try_setPublicSaleState(address token, bool _state) external returns (bool ok) {
-        string memory sig = "setPublicSaleState(bool)";
+    function try_updatePublicMint(address token, bool _state) external returns (bool ok) {
+        string memory sig = "updatePublicMint(bool)";
         (ok,) = address(token).call(abi.encodeWithSignature(sig, _state));
     }
 
-    function try_setWhitelistSaleState(address token, bool _state) external returns (bool ok) {
-        string memory sig = "setWhitelistSaleState(bool)";
+    function try_updateWhitelistMint(address token, bool _state) external returns (bool ok) {
+        string memory sig = "updateWhitelistMint(bool)";
         (ok,) = address(token).call(abi.encodeWithSignature(sig, _state));
-    }    
+    }
+
+    function try_updateSubId(address token, uint64 _subId) external returns (bool ok) {
+        string memory sig = "updateSubId(uint64)";
+        (ok,) = address(token).call(abi.encodeWithSignature(sig, _subId));
+    }
 
     function try_updateCircleAccount(address token, address _circleAccount) external returns (bool ok) {
         string memory sig = "updateCircleAccount(address)";
@@ -64,25 +84,15 @@ contract Actor {
     function try_withdrawERC20(address token, address _contract) external returns (bool ok) {
         string memory sig = "withdrawERC20(address)";
         (ok,) = address(token).call(abi.encodeWithSignature(sig, _contract));
+    } 
+
+    function try_setClaimPeriod(address token) external returns (bool ok) {
+        string memory sig = "setClaimPeriod()";
+        (ok,) = token.call(abi.encodeWithSignature(sig));
     }
 
-    function try_requestEntropy(address token) external returns (bool ok) {
-        string memory sig = "requestEntropy()";
-        (ok,) = address(token).call(abi.encodeWithSignature(sig));
-    }
-
-    function try_initializeTokens(address token) external returns (bool ok) {
-        string memory sig = "initializeTokens()";
-        (ok,) = address(token).call(abi.encodeWithSignature(sig));
-    }
-
-    function try_shuffleTokens(address token) external returns (bool ok) {
-        string memory sig = "shuffleTokens()";
-        (ok,) = address(token).call(abi.encodeWithSignature(sig));
-    }    
-
-    function try_setTokenGiftData(address token) external returns (bool ok) {
-        string memory sig = "setTokenGiftData()";
-        (ok,) = address(token).call(abi.encodeWithSignature(sig));
+    function try_overrideClaimEnd(address token, uint256 _claimEnd) external returns (bool ok) {
+        string memory sig = "overrideClaimEnd(uint256)";
+        (ok,) = token.call(abi.encodeWithSignature(sig, _claimEnd));
     }
 }
